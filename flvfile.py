@@ -188,17 +188,14 @@ class FLVFile(object):
         self._fileOffset = offset
 
     def ReadUInt8(self):
-        self._fileOffset += 1
-        return ord(self._fd.read(1))
+        return ord(self.ReadBytes(1))
 
     def ReadUInt24(self):
-        self._fileOffset += 3
-        data = '\x00' + self._fd.read(3)
+        data = '\x00' + self.ReadBytes(3)
         return unpack('>I', data)[0]
 
     def ReadUInt32(self):
-        self._fileOffset += 4
-        return unpack('>I', self._fd.read(4))[0]
+        return unpack('>I', self.ReadBytes(4))[0]
 
     def ReadBytes(self, size):
         self._fileOffset += size
