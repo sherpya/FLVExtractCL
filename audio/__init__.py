@@ -1,3 +1,4 @@
+__all__ = [ 'MP3Writer' ]
 class AudioWriter(object):
     def WriteChunk(self, chunk, size):
         raise Exception('interface')
