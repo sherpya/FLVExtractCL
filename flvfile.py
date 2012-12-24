@@ -3,6 +3,7 @@ from struct import unpack
 from fractions import Fraction
 
 from audio import *
+from video import *
 
 class FLVException(Exception):
     pass
@@ -114,7 +115,15 @@ class FLVFile(object):
             raise Exception('TODO')
 
     def GetVideoWriter(self, mediaInfo):
-        return DummyWriter()
+        codecID = mediaInfo & 0x0f
+        if codecID in (CODEC.H263, CODEC.VP6, CODEC.VP6v2): # -> AVI
+            path = self._outputPathBase + '.avi'
+            return AVIWriter(path, codecID, self._warnings)
+        elif codecID == CODEC.H264: # -> H264 raw
+            return DummyWriter()
+        else:
+            self._warnings.append('Unsupported codecID %d' % codecID)
+            return DummyWriter()
 
     __slots__ += [ '_extractedAudio', '_extractedVideo', '_extractedTimeCodes' ]
     def ReadTag(self):
