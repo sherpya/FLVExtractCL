@@ -102,17 +102,18 @@ class FLVFile(object):
         bits = (mediaInfo >> 1) & 0x1
         chans = mediaInfo & 0x1
 
-        if format in (2, 14): # MP3
+        if format in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
             path = self._outputPathBase + '.mp3'
             return MP3Writer(path, self._warnings)
-        elif format in (0, 3): # PCM
+        elif format in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
             return DummyWriter()
-        elif format == 10: # AAC
+        elif format == SOUNDFORMAT.AAC:
             return DummyWriter()
-        elif format == 11: # Speex
+        elif format == SOUNDFORMAT.SPEEX:
             return DummyWriter()
         else:
-            raise Exception('TODO')
+            self._warnings.append('Unsupported Sound Format %d' % format)
+            return DummyWriter()
 
     def GetVideoWriter(self, mediaInfo):
         codecID = mediaInfo & 0x0f

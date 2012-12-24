@@ -3,6 +3,8 @@ from struct import pack, unpack_from
 
 from audio import AudioWriter
 
+# http://www.mp3-tech.org/programmer/frame_header.html
+
 MPEG1BitRate        = [ 0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 ]
 MPEG2XBitRate       = [ 0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160 ]
 MPEG1SampleRate     = [ 44100, 48000, 32000 ]
@@ -27,6 +29,12 @@ class BITRATE:
 
 class SAMPLERATE:
     RESERVED    = 0b11
+
+class CHANNELMODE:
+    STEREO      = 0b00
+    JOINTSTEREO = 0b01
+    DUALMONO    = 0b10
+    MONO        = 0b11
 
 class MP3FrameHeader(BigEndianStructure):
     _fields_ = [
@@ -173,12 +181,12 @@ class MP3Writer(AudioWriter):
 
     @staticmethod
     def GetFrameLength(mpegVersion, bitRate, sampleRate, padding):
-        return ((144 if (mpegVersion == 3) else 72) * bitRate / sampleRate) + padding
+        return ((144 if (mpegVersion == MPEGVersion.MPEG1) else 72) * bitRate / sampleRate) + padding
 
     @staticmethod
     def GetFrameDataOffset(mpegVersion, channelMode):
         if mpegVersion == MPEGVersion.MPEG1:
-            o = 17 if (channelMode == 3) else 32
+            o = 17 if (channelMode == CHANNELMODE.MONO) else 32
         else:
-            o = 9 if (channelMode == 3) else 17
+            o = 9 if (channelMode == CHANNELMODE.MONO) else 17
         return o + 4

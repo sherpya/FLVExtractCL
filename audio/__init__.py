@@ -1,4 +1,14 @@
-__all__ = [ 'MP3Writer' ]
+__all__ = [ 'SOUNDFORMAT', 'MP3Writer' ]
+
+class SOUNDFORMAT(object):
+    PCM     = 0
+    ADPCM   = 1
+    MP3     = 2
+    PCM_LE  = 3
+    AAC     = 10
+    SPEEX   = 11
+    MP3_8k  = 14
+
 class AudioWriter(object):
     def WriteChunk(self, chunk, size):
         raise Exception('interface')
