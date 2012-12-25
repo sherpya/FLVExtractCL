@@ -122,9 +122,12 @@ class FLVFile(object):
         codecID = mediaInfo & 0x0f
         if codecID in (CODEC.H263, CODEC.VP6, CODEC.VP6v2): # -> AVI
             path = self._outputPathBase + '.avi'
+            if not self.CanWriteTo(path): return DummyWriter()
             return AVIWriter(path, codecID, self._warnings)
         elif codecID == CODEC.H264: # -> H264 raw
-            return DummyWriter()
+            path = self._outputPathBase + '.264'
+            if not self.CanWriteTo(path): return DummyWriter()
+            return RawH264Writer(path)
         else:
             self._warnings.append('Unsupported codecID %d' % codecID)
             return DummyWriter()
