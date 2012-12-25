@@ -1,4 +1,4 @@
-__all__ = [ 'CODEC', 'AVIWriter', 'RawH264Writer' ]
+__all__ = [ 'CODEC', 'TimeCodeWriter', 'AVIWriter', 'RawH264Writer' ]
 
 class CODEC(object):
     H263    = 2
@@ -14,5 +14,6 @@ class VideoWriter(object):
     def GetPath(self):
         return self._path
 
+from timecodewriter import TimeCodeWriter
 from aviwriter import AVIWriter
 from rawh264writer import RawH264Writer

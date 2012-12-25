@@ -53,6 +53,8 @@ class FLVFile(object):
         self._extractTimeCodes = extractTimeCodes
         self._videoTimeStamps = []
 
+        self._extractedAudio = self._extractedVideo = self._extractedTimeCodes = False
+
         self.Seek(0)
 
         if self._fd.read(4) != 'FLV\x01':
@@ -162,7 +164,6 @@ class FLVFile(object):
                     self._extractedAudio = True
                 else:
                     self._audioWriter = DummyWriter()
-                    self._extractedAudio = False
             self._audioWriter.WriteChunk(data, timeStamp)
 
         elif tagType == TAG.VIDEO: # and ((mediaInfo >> 4) != 5))
@@ -172,11 +173,17 @@ class FLVFile(object):
                     self._extractedVideo = True
                 else:
                     self._videoWriter = DummyWriter()
-                    self._extractedVideo = False
 
-            if self._timeCodeWriter is None: # FIXME
-                self._timeCodeWriter = DummyWriter()
-                self._extractedTimeCodes = False
+            if self._timeCodeWriter is None:
+                if self._extractTimeCodes:
+                    path = self._outputPathBase + '.txt'
+                    if self.CanWriteTo(path):
+                        self._timeCodeWriter = TimeCodeWriter(path)
+                        self._extractedTimeCodes = True
+                    else:
+                        self._timeCodeWriter = DummyWriter()
+                else:
+                    self._timeCodeWriter = DummyWriter()
 
             self._videoTimeStamps.append(timeStamp)
             self._videoWriter.WriteChunk(data, timeStamp, (mediaInfo & 0xf0) >> 4)
