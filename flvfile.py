@@ -104,11 +104,14 @@ class FLVFile(object):
 
         if format in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
             path = self._outputPathBase + '.mp3'
+            if not self.CanWriteTo(path): return DummyWriter()
             return MP3Writer(path, self._warnings)
         elif format in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
             return DummyWriter()
         elif format == SOUNDFORMAT.AAC:
-            return DummyWriter()
+            path = self._outputPathBase + '.aac'
+            if not self.CanWriteTo(path): return DummyWriter()
+            return AACWriter(path, self._warnings)
         elif format == SOUNDFORMAT.SPEEX:
             return DummyWriter()
         else:

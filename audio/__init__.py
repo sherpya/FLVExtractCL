@@ -1,4 +1,4 @@
-__all__ = [ 'SOUNDFORMAT', 'MP3Writer' ]
+__all__ = [ 'SOUNDFORMAT', 'MP3Writer', 'AACWriter' ]
 
 class SOUNDFORMAT(object):
     PCM     = 0
@@ -18,3 +18,4 @@ class AudioWriter(object):
         return self._path
 
 from mp3writer import MP3Writer
+from aacwriter import AACWriter
