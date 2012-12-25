@@ -229,9 +229,46 @@ class FLVFile(object):
             return Fraction(n, d)
         return None
 
-    # TODO
     def CalculateTrueFrameRate(self):
-        return self.CalculateAverageFrameRate()
+        deltaCount = {}
+
+        for i in xrange(1, len(self._videoTimeStamps)):
+            deltaS = self._videoTimeStamps[i] - self._videoTimeStamps[i - 1]
+
+            if deltaS <= 0: continue
+            delta = deltaS
+
+            if delta in deltaCount:
+                deltaCount[delta] += 1
+            else:
+                deltaCount[delta] = 1
+
+        threshold = len(self._videoTimeStamps) / 10
+        minDelta = None # let's say None is maxint
+
+        # Find the smallest delta that made up at least 10% of the frames (grouping in delta+1
+        # because of rounding, e.g. a NTSC video will have deltas of 33 and 34 ms)
+        for (delta, count) in deltaCount.items():
+            if (delta + 1) in deltaCount:
+                count += deltaCount[delta + 1]
+            if (count >= threshold) and ((minDelta is None) or (delta < minDelta)):
+                minDelta = delta
+
+        # Calculate the frame rate based on the smallest delta, and delta+1 if present
+        if minDelta is not None:
+            count = deltaCount[minDelta];
+            totalTime = minDelta * count
+            totalFrames = count
+
+            if (minDelta + 1) in deltaCount:
+                count = deltaCount[minDelta + 1]
+                totalTime += (minDelta + 1) * count
+                totalFrames += count
+
+            if totalTime != 0:
+                return Fraction(totalFrames * 1000, totalTime)
+
+        return None
 
     def Seek(self, offset):
         self._fd.seek(offset)
