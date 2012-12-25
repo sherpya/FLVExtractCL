@@ -4,6 +4,14 @@ from io import SEEK_CUR
 
 from video import CODEC, VideoWriter
 
+class H263FrameHeader(BigEndianStructure):
+    _fields_ = [
+                  ('header',                c_uint, 17),
+                  ('picformat',             c_uint, 5),
+                  ('ts',                    c_uint, 8),
+                  ('format',                c_uint, 3)
+                ]
+
 class VP6FrameHeader(BigEndianStructure):
     _fields_ = [
                   ('deltaFrameFlag',        c_uint, 1),
@@ -176,7 +184,14 @@ class AVIWriter(VideoWriter):
         if self._codecID == CODEC.H263:
             # Reference: flv_h263_decode_picture_header from libavcodec's h263.c
             if len(chunk) < 10: return
-            if (chunk[0] != '\00' or (chunk[1] != '\x00')): return
+
+            hdr = H263FrameHeader.from_buffer_copy(chunk)
+
+            if hdr.header != 1: # h263 header
+                return
+
+            if hdr.picformat not in (0, 1): # picture format 0: h263 escape codes 1: 11-bit escape codes 
+                return
 
             # TODO: h263 frame header
         
