@@ -80,16 +80,16 @@ class FLVFile(object):
         if not os.path.isdir(self._outputDir):
             raise FLVException('Ouput directory doesn\'t exists or not a directory')
 
-        flags = self.ReadUInt8()
+        _flags = self.ReadUInt8()
         dataOffset = self.ReadUInt32()
 
         self.Seek(dataOffset)
 
-        prevTagSize = self.ReadUInt32()
+        _prevTagSize = self.ReadUInt32()
         while self._fileOffset < self._fileLength:
             if not self.ReadTag(): break
             if (self._fileLength - self._fileOffset) < 4: break
-            prevTagSize = self.ReadUInt32()
+            _prevTagSize = self.ReadUInt32()
 
         self._averageFrameRate = self.CalculateAverageFrameRate();
         self._trueFrameRate = self.CalculateTrueFrameRate();
@@ -163,7 +163,7 @@ class FLVFile(object):
         dataSize = self.ReadUInt24()
         timeStamp = self.ReadUInt24()
         timeStamp |= self.ReadUInt8() << 24
-        streamID = self.ReadUInt24()    # always 0
+        _StreamID = self.ReadUInt24()   # always 0
 
         # Read tag data
         if dataSize == 0:
@@ -175,8 +175,9 @@ class FLVFile(object):
         mediaInfo = self.ReadBytes(1)
         audioInfo = AudioTagHeader.from_buffer_copy(mediaInfo)
         videoInfo = VideoTagHeader.from_buffer_copy(mediaInfo)
-        dataSize -= 1;
-        data = self.ReadBytes(dataSize)
+        dataSize -= 1
+
+        chunk = self.ReadBytes(dataSize)
 
         if tagType == TAG.AUDIO:
             if self._audioWriter is None:
@@ -185,7 +186,7 @@ class FLVFile(object):
                     self._extractedAudio = True
                 else:
                     self._audioWriter = DummyWriter()
-            self._audioWriter.WriteChunk(data, timeStamp)
+            self._audioWriter.WriteChunk(chunk, timeStamp)
 
         elif tagType == TAG.VIDEO and (videoInfo.FrameType != 5): # video info/command frame
             if self._videoWriter is None:
@@ -207,7 +208,7 @@ class FLVFile(object):
                     self._timeCodeWriter = DummyWriter()
 
             self._videoTimeStamps.append(timeStamp)
-            self._videoWriter.WriteChunk(data, timeStamp, videoInfo.FrameType)
+            self._videoWriter.WriteChunk(chunk, timeStamp, videoInfo.FrameType)
             self._timeCodeWriter.Write(timeStamp)
 
         elif tagType == TAG.SCRIPT:
