@@ -1,6 +1,7 @@
 import os
 from struct import unpack
 from fractions import Fraction
+from ctypes import BigEndianStructure, c_ubyte
 
 from audio import *
 from video import *
@@ -19,8 +20,24 @@ class DummyWriter(object):
         return None
 
 class TAG(object):
-    AUDIO = 0x08
-    VIDEO = 0x09
+    AUDIO   = 8
+    VIDEO   = 9
+    SCRIPT  = 18
+
+class AudioTagHeader(BigEndianStructure):
+    _fields_ = [
+                ('SoundFormat',     c_ubyte, 4),
+                ('SoundRate',       c_ubyte, 2),
+                ('SoundSize',       c_ubyte, 1),
+                ('SoundType',       c_ubyte, 1)
+                ]
+
+class VideoTagHeader(BigEndianStructure):
+    _fields_ = [
+                ('FrameType',       c_ubyte, 4),
+                ('CodecID',         c_ubyte, 4)
+                ]
+
 
 class FLVFile(object):
     __slots__  = [ '_fd', '_inputPath', '_outputDir', '_fileOffset', '_fileLength' ]
@@ -99,39 +116,38 @@ class FLVFile(object):
             self._timeCodeWriter = None
 
     def GetAudioWriter(self, mediaInfo):
-        format = mediaInfo >> 4
-        rate = (mediaInfo >> 2) & 0x3
-        bits = (mediaInfo >> 1) & 0x1
-        chans = mediaInfo & 0x1
+        #format = mediaInfo >> 4
+        #rate = (mediaInfo >> 2) & 0x3
+        #bits = (mediaInfo >> 1) & 0x1
+        #chans = mediaInfo & 0x1
 
-        if format in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
+        if mediaInfo.SoundFormat in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
             path = self._outputPathBase + '.mp3'
             if not self.CanWriteTo(path): return DummyWriter()
             return MP3Writer(path, self._warnings)
-        elif format in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
+        elif mediaInfo.SoundFormat in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
             return DummyWriter()
-        elif format == SOUNDFORMAT.AAC:
+        elif mediaInfo.SoundFormat == SOUNDFORMAT.AAC:
             path = self._outputPathBase + '.aac'
             if not self.CanWriteTo(path): return DummyWriter()
             return AACWriter(path, self._warnings)
-        elif format == SOUNDFORMAT.SPEEX:
+        elif mediaInfo.SoundFormat == SOUNDFORMAT.SPEEX:
             return DummyWriter()
         else:
-            self._warnings.append('Unsupported Sound Format %d' % format)
+            self._warnings.append('Unsupported Sound Format %d' % mediaInfo.SoundFormat)
             return DummyWriter()
 
     def GetVideoWriter(self, mediaInfo):
-        codecID = mediaInfo & 0x0f
-        if codecID in (CODEC.H263, CODEC.VP6, CODEC.VP6v2): # -> AVI
+        if mediaInfo.CodecID in (CODEC.H263, CODEC.VP6, CODEC.VP6v2): # -> AVI
             path = self._outputPathBase + '.avi'
             if not self.CanWriteTo(path): return DummyWriter()
-            return AVIWriter(path, codecID, self._warnings)
-        elif codecID == CODEC.H264: # -> H264 raw
+            return AVIWriter(path, mediaInfo.CodecID, self._warnings)
+        elif mediaInfo.CodecID == CODEC.H264: # -> H264 raw
             path = self._outputPathBase + '.264'
             if not self.CanWriteTo(path): return DummyWriter()
             return RawH264Writer(path)
         else:
-            self._warnings.append('Unsupported codecID %d' % codecID)
+            self._warnings.append('Unsupported CodecID %d' % mediaInfo.CodecID)
             return DummyWriter()
 
     __slots__ += [ '_extractedAudio', '_extractedVideo', '_extractedTimeCodes' ]
@@ -139,12 +155,15 @@ class FLVFile(object):
         if (self._fileLength - self._fileOffset) < 11:
             return False
 
-        # Read tag header
+        # 2bit reserved - 1bit filter - 5bit tagtype
         tagType = self.ReadUInt8()
+        if tagType & 0xe0:
+            raise Exception('Encrypted or invalid packet')
+
         dataSize = self.ReadUInt24()
         timeStamp = self.ReadUInt24()
         timeStamp |= self.ReadUInt8() << 24
-        streamID = self.ReadUInt24()
+        streamID = self.ReadUInt24()    # always 0
 
         # Read tag data
         if dataSize == 0:
@@ -153,23 +172,25 @@ class FLVFile(object):
         if (self._fileLength - self._fileOffset) < dataSize:
             return False
 
-        mediaInfo = self.ReadUInt8()
+        mediaInfo = self.ReadBytes(1)
+        audioInfo = AudioTagHeader.from_buffer_copy(mediaInfo)
+        videoInfo = VideoTagHeader.from_buffer_copy(mediaInfo)
         dataSize -= 1;
         data = self.ReadBytes(dataSize)
 
         if tagType == TAG.AUDIO:
             if self._audioWriter is None:
                 if self._extractAudio:
-                    self._audioWriter = self.GetAudioWriter(mediaInfo)
+                    self._audioWriter = self.GetAudioWriter(audioInfo)
                     self._extractedAudio = True
                 else:
                     self._audioWriter = DummyWriter()
             self._audioWriter.WriteChunk(data, timeStamp)
 
-        elif tagType == TAG.VIDEO: # and ((mediaInfo >> 4) != 5))
+        elif tagType == TAG.VIDEO and (videoInfo.FrameType != 5): # video info/command frame
             if self._videoWriter is None:
                 if self._extractVideo:
-                    self._videoWriter = self.GetVideoWriter(mediaInfo)
+                    self._videoWriter = self.GetVideoWriter(videoInfo)
                     self._extractedVideo = True
                 else:
                     self._videoWriter = DummyWriter()
@@ -186,8 +207,13 @@ class FLVFile(object):
                     self._timeCodeWriter = DummyWriter()
 
             self._videoTimeStamps.append(timeStamp)
-            self._videoWriter.WriteChunk(data, timeStamp, (mediaInfo & 0xf0) >> 4)
+            self._videoWriter.WriteChunk(data, timeStamp, videoInfo.FrameType)
             self._timeCodeWriter.Write(timeStamp)
+
+        elif tagType == TAG.SCRIPT:
+            pass
+        else:
+            raise Exception('Unknown tag %d' % tagType)
 
         return True
 
