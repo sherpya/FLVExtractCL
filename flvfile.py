@@ -53,12 +53,24 @@ class FLVFile(object):
 
         self._fd = open(inputPath, 'rb')
 
+    def SetOutputDirectory(self, outputDir):
+        self._outputDir = os.path.abspath(outputDir)
+
     def Dispose(self):
         self._fd.close()
         self.CloseOutput(None, True)
 
     def Close(self):
         self.Dispose()
+
+    def AverageFrameRate(self):
+        return '%f (%s)' % (self._averageFrameRate, self._averageFrameRate)
+
+    def TrueFrameRate(self):
+        return '%f (%s)' % (self._trueFrameRate, self._trueFrameRate)
+
+    def Warnings(self):
+        return self._warnings
 
     __slots__ += [ '_outputPathBase', '_overwrite', '_extractAudio', '_extractVideo', '_extractTimeCodes', '_videoTimeStamps' ]
     __slots__ += [ '_averageFrameRate', '_trueFrameRate' ]

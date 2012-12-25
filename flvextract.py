@@ -22,9 +22,25 @@ in the same directory as the source file.''')
     return options
 
 def main():
+    print 'FLV Extract CL v1.6.2 - Python version by Gianluigi Tiesi <sherpya@netfarm.it>'
+    print 'Copyright 2006-2011 J.D. Purcell'
+    print 'http://www.moitah.net/'
+    print
+
     opts = parse_options()
     flvFile = FLVFile(opts.inputPath)
+    if opts.outputDirectory is not None:
+        flvFile.SetOutputDirectory(opts.outputDirectory)
     flvFile.ExtractStreams(opts.extractAudio, opts.extractVideo, opts.extractTimeCodes, opts.overwrite)
+
+    print 'True Frame Rate:', flvFile.TrueFrameRate()
+    print 'Average Frame Rate:', flvFile.AverageFrameRate()
+    print
+
+    for warn in flvFile.Warnings():
+        print 'Warning:', warn
+
+    print 'Finished'
 
 if __name__ == '__main__':
     main()
