@@ -1,6 +1,6 @@
 from struct import pack, unpack
 from ctypes import BigEndianStructure, c_uint
-from io import SEEK_CUR
+from os import SEEK_CUR
 
 from video import CODEC, VideoWriter
 
