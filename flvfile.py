@@ -107,10 +107,10 @@ class FLVFile(object):
             if (self._fileLength - self._fileOffset) < 4: break
             _prevTagSize = self.ReadUInt32()
 
-        self._averageFrameRate = self.CalculateAverageFrameRate();
-        self._trueFrameRate = self.CalculateTrueFrameRate();
+        self._averageFrameRate = self.CalculateAverageFrameRate()
+        self._trueFrameRate = self.CalculateTrueFrameRate()
 
-        self.CloseOutput(self._averageFrameRate, False);
+        self.CloseOutput(self._averageFrameRate, False)
 
     def CloseOutput(self, averageFrameRate, disposing):
         if self._videoWriter is not None:
@@ -275,7 +275,7 @@ class FLVFile(object):
 
         # Calculate the frame rate based on the smallest delta, and delta+1 if present
         if minDelta is not None:
-            count = deltaCount[minDelta];
+            count = deltaCount[minDelta]
             totalTime = minDelta * count
             totalFrames = count
 

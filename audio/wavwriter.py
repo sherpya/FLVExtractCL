@@ -59,7 +59,7 @@ class WAVWriter(AudioWriter):
         self._fd.write(fourCC)
 
     def WriteHeaders(self):
-        dataChunkSize = self.GetDataChunkSize(self._finalSampleLen);
+        dataChunkSize = self.GetDataChunkSize(self._finalSampleLen)
 
         self.WriteFourCC('RIFF')
         self._fd.write(pack('>I', dataChunkSize + (dataChunkSize & 1) + 36))
