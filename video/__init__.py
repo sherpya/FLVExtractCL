@@ -21,10 +21,12 @@
 __all__ = [ 'CODEC', 'TimeCodeWriter', 'AVIWriter', 'RawH264Writer' ]
 
 class CODEC(object):
-    H263    = 2
-    VP6     = 4
-    VP6v2   = 5
-    H264    = 7
+    H263        = 2
+    SCREEN      = 3
+    VP6         = 4
+    VP6v2       = 5
+    SCREENv2    = 6
+    H264        = 7
 
 class VideoWriter(object):
     def WriteChunk(self, chunk, timeStamp, frameType):

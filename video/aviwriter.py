@@ -32,6 +32,14 @@ class H263FrameHeader(BigEndianStructure):
                   ('format',                c_uint, 3)
                 ]
 
+class FLASHSVFrameHeader(BigEndianStructure):
+    _fields_ = [
+                  ('blockWidth',            c_uint, 4),
+                  ('imageWidth',            c_uint, 12),
+                  ('blockHeight',           c_uint, 4),
+                  ('imageHeight',           c_uint, 12)
+                ]
+
 class VP6FrameHeader(BigEndianStructure):
     _fields_ = [
                   ('deltaFrameFlag',        c_uint, 1),
@@ -70,6 +78,8 @@ class AVIWriter(VideoWriter):
             return 'FLV1'
         elif self._codecID in (CODEC.VP6, CODEC.VP6v2):
             return 'VP6F'
+        elif self._codecID in (CODEC.SCREEN, CODEC.SCREENv2): # FIXME: v2?
+            return 'FSV1'
 
     def __init__(self, path, codecID, warnings, isAlphaWriter=False):
         self._path = path
@@ -82,7 +92,7 @@ class AVIWriter(VideoWriter):
         self._index = []
         self._moviDataSize = 0
 
-        if codecID not in (CODEC.H263, CODEC.VP6, CODEC.VP6v2):
+        if codecID not in (CODEC.H263, CODEC.SCREEN, CODEC.SCREENv2, CODEC.VP6, CODEC.VP6v2):
             raise Exception('Unsupported video codec')
 
         self._fd = open(path, 'wb')
@@ -214,7 +224,16 @@ class AVIWriter(VideoWriter):
                 return
 
             # TODO: h263 frame header
-        
+
+        elif self._codecID in (CODEC.SCREEN, CODEC.SCREENv2): # FIXME: v2?
+            # Reference: flashsv_decode_frame from libavcodec's flashsv.c
+            # notice: libavcodec checks if width/height changes
+            if len(chunk) < 4: return
+
+            hdr = FLASHSVFrameHeader.from_buffer_copy(chunk)
+            self._width = hdr.imageWidth
+            self._height = hdr.imageHeight
+
         elif self._codecID in (CODEC.VP6, CODEC.VP6v2):
             # Reference: vp6_parse_header from libavcodec's vp6.c
             skip = 1 if (self._codecID == CODEC.VP6) else 4

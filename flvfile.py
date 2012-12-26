@@ -170,7 +170,7 @@ class FLVFile(object):
             return DummyWriter()
 
     def GetVideoWriter(self, mediaInfo):
-        if mediaInfo.CodecID in (CODEC.H263, CODEC.VP6, CODEC.VP6v2): # -> AVI
+        if mediaInfo.CodecID in (CODEC.H263, CODEC.SCREEN, CODEC.SCREENv2, CODEC.VP6, CODEC.VP6v2): # -> AVI
             path = self._outputPathBase + '.avi'
             if not self.CanWriteTo(path): return DummyWriter()
             return AVIWriter(path, mediaInfo.CodecID, self._warnings)
