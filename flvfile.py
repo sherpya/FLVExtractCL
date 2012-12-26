@@ -45,6 +45,9 @@ class TAG(object):
     SCRIPT  = 18
 
 class AudioTagHeader(BigEndianStructure):
+    SoundRates = [ 5512, 11025, 22050, 44100 ]
+    SoundSizes = [ 8, 16 ]
+    SoundTypes = [ 1 , 2 ]
     _fields_ = [
                 ('SoundFormat',     c_ubyte, 4),
                 ('SoundRate',       c_ubyte, 2),
@@ -148,22 +151,25 @@ class FLVFile(object):
             self._timeCodeWriter = None
 
     def GetAudioWriter(self, mediaInfo):
-        #format = mediaInfo >> 4
-        #rate = (mediaInfo >> 2) & 0x3
-        #bits = (mediaInfo >> 1) & 0x1
-        #chans = mediaInfo & 0x1
-
         if mediaInfo.SoundFormat in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
             path = self._outputPathBase + '.mp3'
             if not self.CanWriteTo(path): return DummyWriter()
             return MP3Writer(path, self._warnings)
         elif mediaInfo.SoundFormat in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
-            return DummyWriter()
+            path = self._outputPathBase + '.wav'
+            if not self.CanWriteTo(path): return DummyWriter()
+            sampleRate = AudioTagHeader.SoundRates[mediaInfo.SoundRate]
+            bits = AudioTagHeader.SoundSizes[mediaInfo.SoundSize]
+            chans = AudioTagHeader.SoundTypes[mediaInfo.SoundType]
+            if mediaInfo.SoundFormat == SOUNDFORMAT.PCM:
+                self._warnings.append('PCM byte order unspecified, assuming little endian')
+            return WAVWriter(path, bits, chans, sampleRate)
         elif mediaInfo.SoundFormat == SOUNDFORMAT.AAC:
             path = self._outputPathBase + '.aac'
             if not self.CanWriteTo(path): return DummyWriter()
             return AACWriter(path, self._warnings)
         elif mediaInfo.SoundFormat == SOUNDFORMAT.SPEEX:
+            self._warnings.append('Unsupported Sound Format Speex')
             return DummyWriter()
         else:
             self._warnings.append('Unsupported Sound Format %d' % mediaInfo.SoundFormat)

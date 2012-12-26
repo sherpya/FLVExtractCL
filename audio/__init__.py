@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-__all__ = [ 'SOUNDFORMAT', 'MP3Writer', 'AACWriter' ]
+__all__ = [ 'SOUNDFORMAT', 'MP3Writer', 'AACWriter', 'WAVWriter' ]
 
 class SOUNDFORMAT(object):
     PCM     = 0
@@ -39,3 +39,4 @@ class AudioWriter(object):
 
 from mp3writer import MP3Writer
 from aacwriter import AACWriter
+from wavwriter import WAVWriter
