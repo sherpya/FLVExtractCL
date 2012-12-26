@@ -93,7 +93,7 @@ class MP3Writer(AudioWriter):
 
         self._fd = open(path, 'wb')
 
-    def WriteChunk(self, chunk, size=None):
+    def WriteChunk(self, chunk, timeStamp=None):
         self._chunkBuffer.append(chunk)
         self.ParseMP3Frames(chunk)
 
