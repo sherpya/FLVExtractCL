@@ -9,3 +9,6 @@ Right now it supports (not much tested):
  - AVI writer (h263 is incomplete)
  - AAC writer
  - RAW H264 writer
+
+build.sh: creates standalone executable called flvextract,
+you need zip and cpio
