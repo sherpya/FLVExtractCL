@@ -22,7 +22,7 @@ from struct import pack, unpack
 from ctypes import BigEndianStructure, c_uint
 from os import SEEK_CUR
 
-from video import CODEC, VideoWriter
+from video import VideoTagHeader, VideoWriter
 
 class H263FrameHeader(BigEndianStructure):
     _fields_ = [
@@ -74,11 +74,11 @@ class AVIWriter(VideoWriter):
         self._fd.write(fourCC)
 
     def CodecFourCC(self):
-        if self._codecID == CODEC.H263:
+        if self._codecID == VideoTagHeader.H263:
             return 'FLV1'
-        elif self._codecID in (CODEC.VP6, CODEC.VP6v2):
+        elif self._codecID in (VideoTagHeader.VP6, VideoTagHeader.VP6v2):
             return 'VP6F'
-        elif self._codecID in (CODEC.SCREEN, CODEC.SCREENv2): # FIXME: v2?
+        elif self._codecID in (VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2): # FIXME: v2?
             return 'FSV1'
 
     def __init__(self, path, codecID, warnings, isAlphaWriter=False):
@@ -92,12 +92,12 @@ class AVIWriter(VideoWriter):
         self._index = []
         self._moviDataSize = 0
 
-        if codecID not in (CODEC.H263, CODEC.SCREEN, CODEC.SCREENv2, CODEC.VP6, CODEC.VP6v2):
+        if codecID not in (VideoTagHeader.H263, VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2, VideoTagHeader.VP6, VideoTagHeader.VP6v2):
             raise Exception('Unsupported video codec')
 
         self._fd = open(path, 'wb')
 
-        if (codecID == CODEC.VP6v2) and not isAlphaWriter:
+        if (codecID == VideoTagHeader.VP6v2) and not isAlphaWriter:
             self._alphaWriter = AVIWriter(path[:-4] + 'alpha.avi', codecID, warnings, True)
 
         self.WriteFourCC('RIFF')
@@ -211,7 +211,7 @@ class AVIWriter(VideoWriter):
             self._alphaWriter.WriteChunk(chunk, timeStamp, frameType)
 
     def GetFrameSize(self, chunk):
-        if self._codecID == CODEC.H263:
+        if self._codecID == VideoTagHeader.H263:
             # Reference: flv_h263_decode_picture_header from libavcodec's h263.c
             if len(chunk) < 10: return
 
@@ -225,7 +225,7 @@ class AVIWriter(VideoWriter):
 
             # TODO: h263 frame header
 
-        elif self._codecID in (CODEC.SCREEN, CODEC.SCREENv2): # FIXME: v2?
+        elif self._codecID in (VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2): # FIXME: v2?
             # Reference: flashsv_decode_frame from libavcodec's flashsv.c
             # notice: libavcodec checks if width/height changes
             if len(chunk) < 4: return
@@ -234,9 +234,9 @@ class AVIWriter(VideoWriter):
             self._width = hdr.imageWidth
             self._height = hdr.imageHeight
 
-        elif self._codecID in (CODEC.VP6, CODEC.VP6v2):
+        elif self._codecID in (VideoTagHeader.VP6, VideoTagHeader.VP6v2):
             # Reference: vp6_parse_header from libavcodec's vp6.c
-            skip = 1 if (self._codecID == CODEC.VP6) else 4
+            skip = 1 if (self._codecID == VideoTagHeader.VP6) else 4
             if len(chunk) < (skip + 8): return
 
             hdr = VP6FrameHeader.from_buffer_copy(chunk, skip)

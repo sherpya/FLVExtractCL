@@ -21,7 +21,6 @@
 import os
 from struct import unpack
 from fractions import Fraction
-from ctypes import BigEndianStructure, c_ubyte
 
 from audio import *
 from video import *
@@ -43,24 +42,6 @@ class TAG(object):
     AUDIO   = 8
     VIDEO   = 9
     SCRIPT  = 18
-
-class AudioTagHeader(BigEndianStructure):
-    SoundRates = [ 5512, 11025, 22050, 44100 ]
-    SoundSizes = [ 8, 16 ]
-    SoundTypes = [ 1 , 2 ]
-    _fields_ = [
-                ('SoundFormat',     c_ubyte, 4),
-                ('SoundRate',       c_ubyte, 2),
-                ('SoundSize',       c_ubyte, 1),
-                ('SoundType',       c_ubyte, 1)
-                ]
-
-class VideoTagHeader(BigEndianStructure):
-    _fields_ = [
-                ('FrameType',       c_ubyte, 4),
-                ('CodecID',         c_ubyte, 4)
-                ]
-
 
 class FLVFile(object):
     __slots__  = [ '_fd', '_inputPath', '_outputDir', '_fileOffset', '_fileLength' ]
@@ -151,24 +132,24 @@ class FLVFile(object):
             self._timeCodeWriter = None
 
     def GetAudioWriter(self, mediaInfo):
-        if mediaInfo.SoundFormat in (SOUNDFORMAT.MP3, SOUNDFORMAT.MP3_8k):
+        if mediaInfo.SoundFormat in (AudioTagHeader.MP3, AudioTagHeader.MP3_8k):
             path = self._outputPathBase + '.mp3'
             if not self.CanWriteTo(path): return DummyWriter()
             return MP3Writer(path, self._warnings)
-        elif mediaInfo.SoundFormat in (SOUNDFORMAT.PCM, SOUNDFORMAT.PCM_LE):
+        elif mediaInfo.SoundFormat in (AudioTagHeader.PCM, AudioTagHeader.PCM_LE):
             path = self._outputPathBase + '.wav'
             if not self.CanWriteTo(path): return DummyWriter()
             sampleRate = AudioTagHeader.SoundRates[mediaInfo.SoundRate]
             bits = AudioTagHeader.SoundSizes[mediaInfo.SoundSize]
             chans = AudioTagHeader.SoundTypes[mediaInfo.SoundType]
-            if mediaInfo.SoundFormat == SOUNDFORMAT.PCM:
+            if mediaInfo.SoundFormat == AudioTagHeader.PCM:
                 self._warnings.append('PCM byte order unspecified, assuming little endian')
             return WAVWriter(path, bits, chans, sampleRate)
-        elif mediaInfo.SoundFormat == SOUNDFORMAT.AAC:
+        elif mediaInfo.SoundFormat == AudioTagHeader.AAC:
             path = self._outputPathBase + '.aac'
             if not self.CanWriteTo(path): return DummyWriter()
             return AACWriter(path, self._warnings)
-        elif mediaInfo.SoundFormat == SOUNDFORMAT.SPEEX:
+        elif mediaInfo.SoundFormat == AudioTagHeader.SPEEX:
             self._warnings.append('Unsupported Sound Format Speex')
             return DummyWriter()
         else:
@@ -176,11 +157,11 @@ class FLVFile(object):
             return DummyWriter()
 
     def GetVideoWriter(self, mediaInfo):
-        if mediaInfo.CodecID in (CODEC.H263, CODEC.SCREEN, CODEC.SCREENv2, CODEC.VP6, CODEC.VP6v2): # -> AVI
+        if mediaInfo.CodecID in (VideoTagHeader.H263, VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2, VideoTagHeader.VP6, VideoTagHeader.VP6v2):
             path = self._outputPathBase + '.avi'
             if not self.CanWriteTo(path): return DummyWriter()
             return AVIWriter(path, mediaInfo.CodecID, self._warnings)
-        elif mediaInfo.CodecID == CODEC.H264: # -> H264 raw
+        elif mediaInfo.CodecID == VideoTagHeader.AVC:
             path = self._outputPathBase + '.264'
             if not self.CanWriteTo(path): return DummyWriter()
             return RawH264Writer(path)

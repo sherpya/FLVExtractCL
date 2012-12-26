@@ -18,15 +18,16 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-__all__ = [ 'CODEC', 'TimeCodeWriter', 'AVIWriter', 'RawH264Writer' ]
+__all__ = [ 'VideoTagHeader', 'TimeCodeWriter', 'AVIWriter', 'RawH264Writer' ]
 
-class CODEC(object):
-    H263        = 2
-    SCREEN      = 3
-    VP6         = 4
-    VP6v2       = 5
-    SCREENv2    = 6
-    H264        = 7
+from ctypes import BigEndianStructure, c_ubyte
+
+class VideoTagHeader(BigEndianStructure):
+    _, _, H263, SCREEN, VP6, VP6v2, SCREENv2, AVC = xrange(8)
+    _fields_ = [
+                ('FrameType',       c_ubyte, 4),
+                ('CodecID',         c_ubyte, 4)
+                ]
 
 class VideoWriter(object):
     def WriteChunk(self, chunk, timeStamp, frameType):

@@ -18,16 +18,21 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-__all__ = [ 'SOUNDFORMAT', 'MP3Writer', 'AACWriter', 'WAVWriter' ]
+__all__ = [ 'AudioTagHeader', 'MP3Writer', 'AACWriter', 'WAVWriter' ]
 
-class SOUNDFORMAT(object):
-    PCM     = 0
-    ADPCM   = 1
-    MP3     = 2
-    PCM_LE  = 3
-    AAC     = 10
-    SPEEX   = 11
-    MP3_8k  = 14
+from ctypes import BigEndianStructure, c_ubyte
+
+class AudioTagHeader(BigEndianStructure):
+    SoundRates = [ 5512, 11025, 22050, 44100 ]
+    SoundSizes = [ 8, 16 ]
+    SoundTypes = [ 1 , 2 ]
+    PCM, ADPCM, MP3, PCM_LE, NELLY_16k, NELLY_8k, NELLYMOSER, ALAW, ULAW, _, AAC, SPEEX, _, _, MP3_8k, _ = range(16)
+    _fields_ = [
+                ('SoundFormat',     c_ubyte, 4),
+                ('SoundRate',       c_ubyte, 2),
+                ('SoundSize',       c_ubyte, 1),
+                ('SoundType',       c_ubyte, 1)
+                ]
 
 class AudioWriter(object):
     def WriteChunk(self, chunk, size):
