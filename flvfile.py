@@ -152,8 +152,9 @@ class FLVFile(object):
             if not self.CanWriteTo(path): return DummyWriter()
             return AACWriter(path, self._warnings)
         elif mediaInfo.SoundFormat == AudioTagHeader.SPEEX:
-            self._warnings.append('Unsupported Sound Format Speex')
-            return DummyWriter()
+            path = self._outputPathBase + '.spx'
+            if not self.CanWriteTo(path): return DummyWriter()
+            return SpeexWriter(path, self._fileLength & 0xffffffff)
         else:
             self._warnings.append('Unsupported Sound Format %d' % mediaInfo.SoundFormat)
             return DummyWriter()

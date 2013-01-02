@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-__all__ = [ 'AudioTagHeader', 'MP3Writer', 'AACWriter', 'WAVWriter' ]
+__all__ = [ 'AudioTagHeader', 'MP3Writer', 'AACWriter', 'WAVWriter', 'SpeexWriter' ]
 
 from ctypes import BigEndianStructure, c_ubyte
 
@@ -45,3 +45,4 @@ class AudioWriter(object):
 from mp3writer import MP3Writer
 from aacwriter import AACWriter
 from wavwriter import WAVWriter
+from speexwriter import SpeexWriter
