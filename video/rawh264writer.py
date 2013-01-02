@@ -38,7 +38,9 @@ class RawH264Writer(VideoWriter):
         # Reference: decode_frame from libavcodec's h264.c
 
         # header
-        if (chunk[0] == '\x00') and (length >= 10):
+        if chunk[0] == '\x00':
+            if length < 10: return
+
             offset = 8
 
             self._nalLengthSize = (ord(chunk[offset]) & 0x03) + 1 ; offset += 1            
