@@ -18,10 +18,11 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-from struct import pack, unpack
-from ctypes import BigEndianStructure, c_uint
+from struct import pack, unpack, unpack_from
+from ctypes import BigEndianStructure, c_uint, c_ulonglong
 from os import SEEK_CUR
 
+from general import BitHelper
 from video import VideoTagHeader, VideoWriter
 
 class H263FrameHeader(BigEndianStructure):
@@ -50,6 +51,12 @@ class VP6FrameHeader(BigEndianStructure):
                   ('interlacedFlag',        c_uint, 1)
                   ]
 
+class VideoFormat(object):
+    CIF     = (352, 288)
+    QCIF    = (176, 144)
+    SQCIF   = (128, 96)
+    QVGA    = (320, 240)
+    QQVGA   = (160, 120)
 
 class AVIWriter(VideoWriter):
     __slots__  = [ '_fd', '_path', '_codecID', '_warnings', '_isAlphaWriter', '_alphaWriter' ]
@@ -215,15 +222,40 @@ class AVIWriter(VideoWriter):
             # Reference: flv_h263_decode_picture_header from libavcodec's h263.c
             if len(chunk) < 10: return
 
-            hdr = H263FrameHeader.from_buffer_copy(chunk)
+            x = c_ulonglong(unpack_from('>Q', chunk, 2)[0])
 
-            if hdr.header != 1: # h263 header
+            if BitHelper.Read(x, 1) != 1:
                 return
 
-            if hdr.picformat not in (0, 1): # picture format 0: h263 escape codes 1: 11-bit escape codes 
-                return
+            BitHelper.Read(x, 5)
+            BitHelper.Read(x, 8)
 
-            # TODO: h263 frame header
+            _format = BitHelper.Read(x, 3)
+
+            if _format == 0:
+                self._width = BitHelper.Read(x, 8)
+                self._height = BitHelper.Read(x, 8)
+            elif _format == 1:
+                self._width = BitHelper.Read(x, 16)
+                self._height = BitHelper.Read(x, 16)
+            elif _format == 2:
+                self._width, self._height = VideoFormat.CIF
+            elif _format == 3:
+                self._width, self._height = VideoFormat.QCIF
+            elif _format == 4:
+                self._width, self._height = VideoFormat.SQCIF
+            elif _format == 5:
+                self._width, self._height = VideoFormat.QVGA
+            elif _format == 6:
+                self._width, self._height = VideoFormat.QQVGA
+
+            #hdr = H263FrameHeader.from_buffer_copy(chunk)
+
+            #if hdr.header != 1: # h263 header
+            #    return
+
+            #if hdr.picformat not in (0, 1): # picture format 0: h263 escape codes 1: 11-bit escape codes 
+            #    return
 
         elif self._codecID in (VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2): # FIXME: v2?
             # Reference: flashsv_decode_frame from libavcodec's flashsv.c

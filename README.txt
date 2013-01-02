@@ -7,8 +7,9 @@ It's pure python and has not external dependencies, it need python 2.6 or newer
 Right now it supports (not much tested):
  - WAV writer
  - MP3 writer
- - AVI writer (vp6/screen, TODO: h263 picture size)
+ - AVI writer (vp6/screen/h263)
  - AAC writer
+ - Speex writer (buggy)
  - RAW H264 writer
 
 build.sh: creates standalone executable called flvextract,
