@@ -9,7 +9,7 @@ Right now it supports (not much tested):
  - MP3 writer
  - AVI writer (vp6/screen/h263)
  - AAC writer
- - Speex writer (buggy)
+ - Speex writer
  - RAW H264 writer
 
 build.sh: creates standalone executable called flvextract,

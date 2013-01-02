@@ -101,10 +101,11 @@ class SpeexWriter(AudioWriter):
                     raise Exception
 
             frameEnd = offset.value
-            if offset.value > length: raise Exception
 
-            if frameStart != -1:
-                self.WriteFramePacket(chunk, frameStart, frameEnd)
+        if offset.value > length: raise Exception
+
+        if frameStart != -1:
+            self.WriteFramePacket(chunk, frameStart, frameEnd)
 
     def Finish(self):
         self.WritePage()
