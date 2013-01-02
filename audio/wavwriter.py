@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-from struct import pack
+from general import BitConverterLE
 from audio import AudioWriter
 
 class WAVWriter(AudioWriter):
@@ -62,18 +62,18 @@ class WAVWriter(AudioWriter):
         dataChunkSize = self.GetDataChunkSize(self._finalSampleLen)
 
         self.WriteFourCC('RIFF')
-        self._fd.write(pack('>I', dataChunkSize + (dataChunkSize & 1) + 36))
+        self._fd.write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
         self.WriteFourCC('WAVE')
         self.WriteFourCC('fmt ')
-        self._fd.write(pack('<I', 16))
-        self._fd.write(pack('<H', 1))
-        self._fd.write(pack('<H', self._channelCount))
-        self._fd.write(pack('<I', self._sampleRate))
-        self._fd.write(pack('<I', self._sampleRate * self._blockAlign))
-        self._fd.write(pack('<H', self._blockAlign))
-        self._fd.write(pack('<H', self._bitsPerSample))
+        self._fd.write(BitConverterLE.FromUInt32(16))
+        self._fd.write(BitConverterLE.FromUInt16(1))
+        self._fd.write(BitConverterLE.FromUInt16(self._channelCount))
+        self._fd.write(BitConverterLE.FromUInt32(self._sampleRate))
+        self._fd.write(BitConverterLE.FromUInt32(self._sampleRate * self._blockAlign))
+        self._fd.write(BitConverterLE.FromUInt16(self._blockAlign))
+        self._fd.write(BitConverterLE.FromUInt16(self._bitsPerSample))
         self.WriteFourCC('data')
-        self._fd.write(pack('<I', dataChunkSize))
+        self._fd.write(BitConverterLE.FromUInt32(dataChunkSize))
 
     def GetDataChunkSize(self, sampleCount):
         maxFileSize = 0x7ffffffe
@@ -93,9 +93,9 @@ class WAVWriter(AudioWriter):
 
             dataChunkSize = self.GetDataChunkSize(self._sampleLen)
             self._fd.seek(4)
-            self._fd.write(pack('<I', dataChunkSize + (dataChunkSize & 1) + 36))
+            self._fd.write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
             self._fd.seek(40)
-            self._fd.write(pack('<I', dataChunkSize))
+            self._fd.write(BitConverterLE.FromUInt32(dataChunkSize))
 
         self._fd.close()
 

@@ -19,9 +19,9 @@
 #
 
 import os
-from struct import unpack
 from fractions import Fraction
 
+from general import BitConverterBE
 from audio import *
 from video import *
 
@@ -195,11 +195,12 @@ class FLVFile(object):
             return False
 
         mediaInfo = self.ReadBytes(1)
-        audioInfo = AudioTagHeader.from_buffer_copy(mediaInfo)
-        videoInfo = VideoTagHeader.from_buffer_copy(mediaInfo)
         dataSize -= 1
 
-        chunk = self.ReadBytes(dataSize)
+        audioInfo = AudioTagHeader.from_buffer_copy(mediaInfo)
+        videoInfo = VideoTagHeader.from_buffer_copy(mediaInfo)
+
+        chunk = bytearray(self.ReadBytes(dataSize))
 
         if tagType == TAG.AUDIO:
             if self._audioWriter is None:
@@ -301,10 +302,10 @@ class FLVFile(object):
 
     def ReadUInt24(self):
         data = '\x00' + self.ReadBytes(3)
-        return unpack('>I', data)[0]
+        return BitConverterBE.ToUInt32(data)
 
     def ReadUInt32(self):
-        return unpack('>I', self.ReadBytes(4))[0]
+        return BitConverterBE.ToUInt32(self.ReadBytes(4))
 
     def ReadBytes(self, size):
         self._fileOffset += size

@@ -18,6 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+from struct import pack, unpack_from
 from ctypes import c_int, c_uint, c_ulong, c_ulonglong
 
 class BitHelper(object):
@@ -68,15 +69,52 @@ class BitHelper(object):
 
         return dst
 
+class BitConverterBE(object):
+    @staticmethod
+    def ToUInt16(buff, offset=0):
+        return unpack_from('>H', str(buff[offset:offset + 2]))[0]
+
+    @staticmethod
+    def FromUInt32(value):
+        return pack('>I', value)
+
+    @staticmethod
+    def ToUInt32(buff, offset=0):
+        return unpack_from('>I', str(buff[offset:offset + 4]))[0]
+
+    @staticmethod
+    def ToUInt64(buff, offset=0):
+        return unpack_from('>Q', str(buff[offset:offset + 8]))[0]
+
+
+class BitConverterLE(object):
+    @staticmethod
+    def FromUInt16(value):
+        return pack('<H', value)
+
+    @staticmethod
+    def FromUInt32(value):
+        return pack('<I', value)
+
+    @staticmethod
+    def FromInt32(value):
+        return pack('<i', value)
+
+    @staticmethod
+    def FromUInt64(value):
+        return pack('<Q', value)
+
 _lut = {}
-for i in xrange(256):
+def makeTable(i):
     x = c_uint(i << 24)
-    for j in xrange(8):
+    for _ in xrange(8):
         if x.value & 0x80000000:
             x.value = (x.value << 1) ^ 0x04c11db7
         else:
             x.value = x.value << 1
-    _lut[i] = x.value
+    return x.value
+
+_lut = map(makeTable, xrange(256))
 
 class OggCRC(object):
     @staticmethod

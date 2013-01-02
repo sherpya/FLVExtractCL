@@ -18,11 +18,10 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-from struct import pack, unpack, unpack_from
 from ctypes import BigEndianStructure, c_uint, c_ulonglong
 from os import SEEK_CUR
 
-from general import BitHelper
+from general import BitHelper, BitConverterBE, BitConverterLE
 from video import VideoTagHeader, VideoWriter
 
 class H263FrameHeader(BigEndianStructure):
@@ -108,83 +107,83 @@ class AVIWriter(VideoWriter):
             self._alphaWriter = AVIWriter(path[:-4] + 'alpha.avi', codecID, warnings, True)
 
         self.WriteFourCC('RIFF')
-        self._fd.write(pack('<I', 0)) # chunk size
+        self._fd.write(BitConverterLE.FromUInt32(0)) # chunk size
         self.WriteFourCC('AVI ')
 
         self.WriteFourCC('LIST')
-        self._fd.write(pack('<I', 192))
+        self._fd.write(BitConverterLE.FromUInt32(192))
         self.WriteFourCC('hdrl')
 
         self.WriteFourCC('avih')
-        self._fd.write(pack('<I', 56))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0x10))
-        self._fd.write(pack('<I', 0)) # frame count
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 1))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0)) # width
-        self._fd.write(pack('<I', 0)) # height
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
+        self._fd.write(BitConverterLE.FromUInt32(56))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0x10))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # frame count
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(1))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # width
+        self._fd.write(BitConverterLE.FromUInt32(0)) # height
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
 
         self.WriteFourCC('LIST')
-        self._fd.write(pack('<I', 116))
+        self._fd.write(BitConverterLE.FromUInt32(116))
         self.WriteFourCC('strl')
 
         self.WriteFourCC('strh')
-        self._fd.write(pack('<I', 56))
+        self._fd.write(BitConverterLE.FromUInt32(56))
         self.WriteFourCC('vids')
         self.WriteFourCC(self.CodecFourCC())
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0)) # frame rate denominator
-        self._fd.write(pack('<I', 0)) # frame rate numerator
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0)) # frame count
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<i', -1))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<H', 0))
-        self._fd.write(pack('<H', 0))
-        self._fd.write(pack('<H', 0)) # width
-        self._fd.write(pack('<H', 0)) # height
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # frame rate denominator
+        self._fd.write(BitConverterLE.FromUInt32(0)) # frame rate numerator
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # frame count
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromInt32(-1))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt16(0))
+        self._fd.write(BitConverterLE.FromUInt16(0))
+        self._fd.write(BitConverterLE.FromUInt16(0)) # width
+        self._fd.write(BitConverterLE.FromUInt16(0)) # height
 
         self.WriteFourCC('strf')
-        self._fd.write(pack('<I', 40))
-        self._fd.write(pack('<I', 40))
-        self._fd.write(pack('<I', 0)) # width
-        self._fd.write(pack('<I', 0)) # height
-        self._fd.write(pack('<H', 1))
-        self._fd.write(pack('<H', 24))
+        self._fd.write(BitConverterLE.FromUInt32(40))
+        self._fd.write(BitConverterLE.FromUInt32(40))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # width
+        self._fd.write(BitConverterLE.FromUInt32(0)) # height
+        self._fd.write(BitConverterLE.FromUInt16(1))
+        self._fd.write(BitConverterLE.FromUInt16(24))
     
         self.WriteFourCC(self.CodecFourCC())
-        self._fd.write(pack('<I', 0)) # biSizeImage
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
-        self._fd.write(pack('<I', 0))
+        self._fd.write(BitConverterLE.FromUInt32(0)) # biSizeImage
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
     
         self.WriteFourCC('LIST')
-        self._fd.write(pack('<I', 0)) # chunk size
+        self._fd.write(BitConverterLE.FromUInt32(0)) # chunk size
         self.WriteFourCC('movi')
 
     def WriteChunk(self, chunk, timeStamp, frameType):
         offset = 0
         length = len(chunk)
 
-        if self._codecID == 4:
+        if self._codecID == VideoTagHeader.VP6:
             offset = 1
             length -= 1
-        elif self._codecID == 5:
+        elif self._codecID == VideoTagHeader.VP6v2:
             offset = 4
             if length >= 4:
-                alphaOffset = unpack('>I', chunk[:4])[0] & 0xffffff
+                alphaOffset = BitConverterBE.ToUInt32(chunk, 0) & 0xffffff
                 if not self._isAlphaWriter:
                     length = alphaOffset
                 else:
@@ -204,7 +203,7 @@ class AVIWriter(VideoWriter):
             self.GetFrameSize(chunk)
 
         self.WriteFourCC('00dc')
-        self._fd.write(pack('<i', length))
+        self._fd.write(BitConverterLE.FromInt32(length))
         self._fd.write(chunk[offset:offset + length])
 
         if (length % 2) != 0:
@@ -222,7 +221,7 @@ class AVIWriter(VideoWriter):
             # Reference: flv_h263_decode_picture_header from libavcodec's h263.c
             if len(chunk) < 10: return
 
-            x = c_ulonglong(unpack_from('>Q', chunk, 2)[0])
+            x = c_ulonglong(BitConverterBE.ToUInt64(chunk, 2))
 
             if BitHelper.Read(x, 1) != 1:
                 return
@@ -281,8 +280,8 @@ class AVIWriter(VideoWriter):
             else:
                 xy = chunk[skip:skip + 2]
 
-            self._height = ord(xy[0]) * 16
-            self._width = ord(xy[1]) * 16
+            self._height = xy[0] * 16
+            self._width = xy[1] * 16
 
             # chunk[0] contains the width and height (4 bits each, respectively) that should
             # be cropped off during playback, which will be non-zero if the encoder padded
@@ -290,8 +289,8 @@ class AVIWriter(VideoWriter):
             # AVI header, DirectShow seems to ignore it, and it can cause stride or chroma
             # alignment problems with VFW if the width/height aren't multiples of 4.
             if not self._isAlphaWriter:
-                cropX = ord(chunk[0]) >> 4
-                cropY = ord(chunk[0]) & 0xf
+                cropX = chunk[0] >> 4
+                cropY = chunk[0] & 0xf
                 if (cropX != 0) or (cropY != 0):
                     self._warnings.append('Suggested cropping: %d pixels from right, %d pixels from bottom' % (cropX, cropY))
 
@@ -300,13 +299,13 @@ class AVIWriter(VideoWriter):
         indexDataSize = self._frameCount * 16
 
         self.WriteFourCC('idx1')
-        self._fd.write(pack('<I', indexDataSize))
+        self._fd.write(BitConverterLE.FromUInt32(indexDataSize))
 
         for i in xrange(self._frameCount):
             self.WriteFourCC('00dc')
-            self._fd.write(pack('<I', self._index[(i * 3) + 0]))
-            self._fd.write(pack('<I', self._index[(i * 3) + 1]))
-            self._fd.write(pack('<I', self._index[(i * 3) + 2]))
+            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 0]))
+            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 1]))
+            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 2]))
 
         self._indexChunkSize = indexDataSize + 8
 
@@ -314,33 +313,33 @@ class AVIWriter(VideoWriter):
         self.WriteIndexChunk()
 
         self._fd.seek(4)
-        self._fd.write(pack('<I', 224 + self._moviDataSize + self._indexChunkSize - 8))
+        self._fd.write(BitConverterLE.FromUInt32(224 + self._moviDataSize + self._indexChunkSize - 8))
 
         self._fd.seek(24 + 8)
-        self._fd.write(pack('<I', 0))
+        self._fd.write(BitConverterLE.FromUInt32(0))
         self._fd.seek(12, SEEK_CUR)
-        self._fd.write(pack('<I', self._frameCount))
+        self._fd.write(BitConverterLE.FromUInt32(self._frameCount))
         self._fd.seek(12, SEEK_CUR)
-        self._fd.write(pack('<I', self._width))
-        self._fd.write(pack('<I', self._height))
+        self._fd.write(BitConverterLE.FromUInt32(self._width))
+        self._fd.write(BitConverterLE.FromUInt32(self._height))
 
         self._fd.seek(100 + 28)
-        self._fd.write(pack('<I', averageFrameRate.denominator))
-        self._fd.write(pack('<I', averageFrameRate.numerator))
+        self._fd.write(BitConverterLE.FromUInt32(averageFrameRate.denominator))
+        self._fd.write(BitConverterLE.FromUInt32(averageFrameRate.numerator))
         self._fd.seek(4, SEEK_CUR)
-        self._fd.write(pack('<I', self._frameCount))
+        self._fd.write(BitConverterLE.FromUInt32(self._frameCount))
         self._fd.seek(16, SEEK_CUR)
-        self._fd.write(pack('<H', self._width))
-        self._fd.write(pack('<H', self._height))
+        self._fd.write(BitConverterLE.FromUInt16(self._width))
+        self._fd.write(BitConverterLE.FromUInt16(self._height))
 
         self._fd.seek(164 + 12)
-        self._fd.write(pack('<I', self._width))
-        self._fd.write(pack('<I', self._height))
+        self._fd.write(BitConverterLE.FromUInt32(self._width))
+        self._fd.write(BitConverterLE.FromUInt32(self._height))
         self._fd.seek(8, SEEK_CUR)
-        self._fd.write(pack('<I', self._width * self._height * 6))
+        self._fd.write(BitConverterLE.FromUInt32(self._width * self._height * 6))
 
         self._fd.seek(212 + 4)
-        self._fd.write(pack('<I', self._moviDataSize + 4))
+        self._fd.write(BitConverterLE.FromUInt32(self._moviDataSize + 4))
 
         self._fd.close()
 

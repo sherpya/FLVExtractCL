@@ -18,10 +18,9 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-from struct import unpack_from
 from ctypes import c_ulonglong
 
-from general import BitHelper
+from general import BitHelper, BitConverterBE
 from audio import AudioWriter
 
 class AACWriter(AudioWriter):
@@ -38,8 +37,10 @@ class AACWriter(AudioWriter):
         if length < 1: return
 
         # header
-        if (chunk[0] == '\x00') and (length >= 3):
-            bits = c_ulonglong(unpack_from('>H', chunk, 1)[0] << 48)
+        if chunk[0] == 0:
+            if length > 3: return
+
+            bits = c_ulonglong(BitConverterBE.ToUInt16(chunk, 1) << 48)
 
             # 0: MAIN - 1: LC - 2: SSR - 3: LTP
             self._aacProfile = BitHelper.Read(bits, 5) - 1

@@ -19,8 +19,8 @@
 #
 
 from ctypes import BigEndianStructure, c_uint
-from struct import pack, unpack_from
 
+from general import BitConverterBE
 from audio import AudioWriter
 
 # http://www.mp3-tech.org/programmer/frame_header.html
@@ -160,7 +160,7 @@ class MP3Writer(AudioWriter):
                 self._mpegVersion = hdr.mpegVersion
                 self._sampleRate = sampleRate
                 self._channelMode = hdr.channelMode
-                self._firstFrameHeader = unpack_from('>H', buff, offset)[0]
+                self._firstFrameHeader = BitConverterBE.ToUInt32(buff, offset)
             elif not self._isVBR and (bitRate != self._firstBitRate):
                 self._isVBR = True
                 if self._hasVBRHeader:
@@ -187,12 +187,12 @@ class MP3Writer(AudioWriter):
             header |= 0x00010000    # Set protection bit (indicates that CRC is NOT present)
             header |= (5 if self._mpegVersion == MPEGVersion.MPEG1 else 8) << 12 # 64 kbit/sec
 
-            pos = 0                 ; buff[pos:pos + 4] = pack('>H', header)
+            pos = 0                 ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(header)
 
             pos = dataOffset        ; buff[pos:pos + 4] = 'Xing'
-            pos = dataOffset + 4    ; buff[pos:pos + 4] = pack('>H', 0x7) # Flags
-            pos = dataOffset + 8    ; buff[pos:pos + 4] = pack('>H', len(self._frameOffsets)) # Frame count
-            pos = dataOffset + 12   ; buff[pos:pos + 4] = pack('>H', self._totalFrameLength) # File Length 
+            pos = dataOffset + 4    ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(0x7) # Flags
+            pos = dataOffset + 8    ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(len(self._frameOffsets))    # Frame count
+            pos = dataOffset + 12   ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(self._totalFrameLength)     # File Length 
 
             for i in xrange(100):
                 frameIndex = int((i / 100.0) * len(self._frameOffsets))

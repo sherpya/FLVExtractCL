@@ -18,10 +18,9 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-from struct import pack
 from ctypes import c_int
 
-from general import BitHelper, OggCRC
+from general import BitHelper, BitConverterLE, OggCRC
 from audio import AudioWriter
 
 class OggPacket(object):
@@ -63,7 +62,6 @@ class SpeexWriter(AudioWriter):
     _inBandSignalSizes = [ 1, 1, 4, 4, 4, 4, 4, 4, 8, 8, 16, 16, 32, 32, 64, 64 ]
 
     def WriteChunk(self, chunk, timeStamp=None):
-        chunk = bytearray(chunk)
         frameStart = -1
         frameEnd = 0
         offset = c_int()
@@ -130,20 +128,20 @@ class SpeexWriter(AudioWriter):
     def WriteSpeexHeaderPacket(self):
         data = bytearray(80)
 
-        pos = 0         ; data[pos:pos + 8] = 'Speex   '                                # speex_string
-        pos = 8         ; data[pos:pos + 7] = 'unknown'                                 # speex_version
+        pos = 0         ; data[pos:pos + 8] = 'Speex   '    # speex_string
+        pos = 8         ; data[pos:pos + 7] = 'unknown'     # speex_version
     
         data[28] = 1    # speex_version_id
         data[32] = 80   # header_size
 
-        pos = 36        ; data[pos:pos + 4] = pack('<I', SpeexWriter._sampleRate)       # rate
+        pos = 36        ; data[pos:pos + 4] = BitConverterLE.FromUInt32(SpeexWriter._sampleRate)       # rate
 
         data[40] = 1    # mode (e.g. narrowband, wideband)
         data[44] = 4    # mode_bitstream_version
         data[48] = 1    # nb_channels
 
-        pos = 52        ; data[pos:pos + 4] = pack('<i', -1)                            # bitrate
-        pos = 56        ; data[pos:pos + 4] = pack('<I', SpeexWriter._samplesPerFrame)  # frame_size
+        pos = 52        ; data[pos:pos + 4] = BitConverterLE.FromUInt32(0xffffffff)                     # -1: bitrate
+        pos = 56        ; data[pos:pos + 4] = BitConverterLE.FromUInt32(SpeexWriter._samplesPerFrame)   # frame_size
 
         data[60] = 0    # vbr
         data[64] = 1    # frames_per_packet
@@ -203,8 +201,7 @@ class SpeexWriter(AudioWriter):
             self._pageBuff[5] |= 0x04
 
         crc = OggCRC.Calculate(self._pageBuff, 0, self._pageBuffOffset)
-        pos = 22        ; self._pageBuff[pos:pos + 4] = pack('<I', crc)
-
+        pos = 22        ; self._pageBuff[pos:pos + 4] = BitConverterLE.FromUInt32(crc)
         self._fd.write(self._pageBuff[:self._pageBuffOffset])
         self._pageBuffOffset = 0
 
@@ -216,7 +213,7 @@ class SpeexWriter(AudioWriter):
         self.WriteToPage(chr(value), 0, 1)
 
     def WriteToPageUInt32(self, value):
-        self.WriteToPage(pack('<I', value), 0, 4)
+        self.WriteToPage(BitConverterLE.FromUInt32(value), 0, 4)
 
     def WriteToPageUInt64(self, value):
-        self.WriteToPage(pack('<Q', value), 0, 8)
+        self.WriteToPage(BitConverterLE.FromUInt64(value), 0, 8)
