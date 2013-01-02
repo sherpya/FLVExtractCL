@@ -81,7 +81,7 @@ class FLVFile(object):
     __slots__ += [ '_outputPathBase', '_overwrite', '_extractAudio', '_extractVideo', '_extractTimeCodes', '_videoTimeStamps' ]
     __slots__ += [ '_averageFrameRate', '_trueFrameRate' ]
     def ExtractStreams(self, extractAudio, extractVideo, extractTimeCodes, overwrite):
-        self._outputPathBase = os.path.join(self._outputDir, os.path.splitext(self._inputPath)[0])
+        self._outputPathBase = os.path.join(self._outputDir, os.path.splitext(os.path.basename(self._inputPath))[0])
         self._overwrite = overwrite
         self._extractAudio = extractAudio
         self._extractVideo = extractVideo
