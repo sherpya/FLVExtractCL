@@ -68,9 +68,11 @@ class FLVFile(object):
         self.Dispose()
 
     def AverageFrameRate(self):
+        if self._averageFrameRate is None: return 'N/A'
         return '%f (%s)' % (self._averageFrameRate, self._averageFrameRate)
 
     def TrueFrameRate(self):
+        if self._trueFrameRate is None: return 'N/A'
         return '%f (%s)' % (self._trueFrameRate, self._trueFrameRate)
 
     def Warnings(self):
