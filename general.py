@@ -18,14 +18,28 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-def GetMask(size):
-    return (1 << size) - 1
+#def GetMask(size):
+#    return (1 << size) - 1
 
-def BitGet(x, length, size=64):
-    r = x >> (size - length)
-    x = (x << length) & GetMask(size)
-    return (x, r)
+#def BitGet(x, length, size=64):
+#    r = x >> (size - length)
+#    x = (x << length) & GetMask(size)
+#    return (x, r)
 
-def BitSet(x, length, value, size=64):
-    mask = GetMask(size) >> (size - length)
-    return (x << length) | (value & mask)
+#def BitSet(x, length, value, size=64):
+#    mask = GetMask(size) >> (size - length)
+#    return (x << length) | (value & mask)
+
+from ctypes import c_int, c_ulonglong
+
+class BitHelper(object):
+    @staticmethod
+    def Read(x, length):
+        r = c_int(x.value >> (64 - length))
+        x.value <<= length
+        return r.value
+
+    @staticmethod
+    def Write(x, length, value):
+        mask = c_ulonglong(0xffffffffffffffffL >> (64 - length))
+        x.value = (x.value << length) | (value & mask.value)

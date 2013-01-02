@@ -19,8 +19,9 @@
 #
 
 from struct import unpack_from
+from ctypes import c_ulonglong
 
-from bitops import BitGet, BitSet
+from general import BitHelper
 from audio import AudioWriter
 
 class AACWriter(AudioWriter):
@@ -38,14 +39,12 @@ class AACWriter(AudioWriter):
 
         # header
         if (chunk[0] == '\x00') and (length >= 3):
-            bits = unpack_from('>H', chunk, 1)[0] << 48
+            bits = c_ulonglong(unpack_from('>H', chunk, 1)[0] << 48)
 
             # 0: MAIN - 1: LC - 2: SSR - 3: LTP
-            bits, self._aacProfile = BitGet(bits, 5)
-            bits, self._sampleRateIndex = BitGet(bits, 4)
-            bits, self._channelConfig = BitGet(bits, 4)
-
-            self._aacProfile -= 1
+            self._aacProfile = BitHelper.Read(bits, 5) - 1
+            self._sampleRateIndex = BitHelper.Read(bits, 4)
+            self._channelConfig = BitHelper.Read(bits, 4)
 
             if not (0 <= self._aacProfile <= 3):
                 raise Exception('Unsupported AAC profile')
@@ -58,25 +57,26 @@ class AACWriter(AudioWriter):
         else:
             dataSize = length - 1
 
-            bits = 0L
-            bits = BitSet(bits, 12, 0xfff)                  # sync -> always 111111111111
-            bits = BitSet(bits,  1, 0)                      # id -> 0: MPEG-4 - 1: MPEG-2
-            bits = BitSet(bits,  2, 0)                      # layer always 00
-            bits = BitSet(bits,  1, 1)                      # protection absent
-            bits = BitSet(bits,  2, self._aacProfile)
-            bits = BitSet(bits,  4, self._sampleRateIndex)
-            bits = BitSet(bits,  1, 0)                      # private bit
-            bits = BitSet(bits,  3, self._channelConfig)
-            bits = BitSet(bits,  1, 0)                      # original/copy
-            bits = BitSet(bits,  1, 0)                      # home
+            bits = c_ulonglong()
+            BitHelper.Write(bits, 12, 0xfff)                    # sync -> always 111111111111
+            BitHelper.Write(bits,  1, 0)                        # id -> 0: MPEG-4 - 1: MPEG-2
+            BitHelper.Write(bits,  2, 0)                        # layer always 00
+            BitHelper.Write(bits,  1, 1)                        # protection absent
+            BitHelper.Write(bits,  2, self._aacProfile)
+            BitHelper.Write(bits,  4, self._sampleRateIndex)
+            BitHelper.Write(bits,  1, 0)                        # private bit
+            BitHelper.Write(bits,  3, self._channelConfig)
+            BitHelper.Write(bits,  1, 0)                        # original/copy
+            BitHelper.Write(bits,  1, 0)                        # home
             # ADTS Variable header
-            bits = BitSet(bits,  1, 0)                      # copyright identification bit
-            bits = BitSet(bits,  1, 0)                      # copyright identification start
-            bits = BitSet(bits, 13, 7 + dataSize)           # Length of the frame incl. header
-            bits = BitSet(bits, 11, 0x7ff)                  # ADTS buffer fullness, 0x7ff indicates VBR
-            bits = BitSet(bits,  2, 0)                      # No raw data block in frame
+            BitHelper.Write(bits,  1, 0)                        # copyright identification bit
+            BitHelper.Write(bits,  1, 0)                        # copyright identification start
+            BitHelper.Write(bits, 13, 7 + dataSize)             # Length of the frame incl. header
+            BitHelper.Write(bits, 11, 0x7ff)                    # ADTS buffer fullness, 0x7ff indicates VBR
+            BitHelper.Write(bits,  2, 0)                        # No raw data block in frame
 
-            self._fd.write(('%x' % bits).decode('hex'))
+            # pack() would emit 8 bytes instead of 7
+            self._fd.write(('%x' % bits.value).decode('hex'))
             self._fd.write(chunk[1:])
 
     def Finish(self):
