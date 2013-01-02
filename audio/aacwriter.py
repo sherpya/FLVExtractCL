@@ -24,12 +24,11 @@ from general import BitHelper, BitConverterBE
 from audio import AudioWriter
 
 class AACWriter(AudioWriter):
-    __slots__  = [ '_fd', '_path', '_warnings' ]
+    __slots__  = [ '_warnings' ]
 
     def __init__(self, path, warnings):
-        self._path = path
+        super(AACWriter, self).__init__(path)
         self._warnings = warnings
-        self._fd = open(path, 'wb')
 
     __slots__ += [ '_aacProfile', '_sampleRateIndex', '_channelConfig' ]
     def WriteChunk(self, chunk, size=None):
@@ -76,9 +75,8 @@ class AACWriter(AudioWriter):
             BitHelper.Write(bits, 11, 0x7ff)                    # ADTS buffer fullness, 0x7ff indicates VBR
             BitHelper.Write(bits,  2, 0)                        # No raw data block in frame
 
-            # pack() would emit 8 bytes instead of 7
-            self._fd.write(('%x' % bits.value).decode('hex'))
-            self._fd.write(chunk[1:])
+            self.Write(BitConverterBE.FromUInt64(bits.value), 1, 7)
+            self.Write(chunk, 1, dataSize)
 
     def Finish(self):
-        self._fd.close()
+        self.Close()

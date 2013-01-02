@@ -20,6 +20,7 @@
 
 __all__ = [ 'AudioTagHeader', 'MP3Writer', 'AACWriter', 'WAVWriter', 'SpeexWriter' ]
 
+from general import Writer
 from ctypes import BigEndianStructure, c_ubyte
 
 class AudioTagHeader(BigEndianStructure):
@@ -34,13 +35,12 @@ class AudioTagHeader(BigEndianStructure):
                 ('SoundType',       c_ubyte, 1)
                 ]
 
-class AudioWriter(object):
+class AudioWriter(Writer):
     def WriteChunk(self, chunk, size):
         raise Exception('interface')
     def Finish(self):
         raise Exception('interface')
-    def GetPath(self):
-        return self._path
+
 
 from mp3writer import MP3Writer
 from aacwriter import AACWriter

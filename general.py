@@ -18,8 +18,35 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+from os import SEEK_SET
 from struct import pack, unpack_from
 from ctypes import c_int, c_uint, c_ulong, c_ulonglong
+
+class Writer(object):
+    __slots__ = [ '_path', '_fd']
+    def __init__(self, path, mode='wb'):
+        self._path = path
+        self._fd = open(self._path, mode)
+
+    def Write(self, buff, offset=0, size=None):
+        if size is None: size = len(buff) - offset
+        buff = buff[offset:offset + size]
+        assert len(buff) == size
+        self._fd.write(buff)
+
+    def WriteFourCC(self, fourCC):
+        if len(fourCC) != 4:
+            raise Exception('Invalid fourCC length')
+        self.Write(fourCC)
+
+    def Seek(self, pos, whence=SEEK_SET):
+        self._fd.seek(pos, whence)
+
+    def Close(self):
+        self._fd.close()
+
+    def GetPath(self):
+        return self._path
 
 class BitHelper(object):
     @staticmethod
@@ -81,6 +108,10 @@ class BitConverterBE(object):
     @staticmethod
     def ToUInt32(buff, offset=0):
         return unpack_from('>I', str(buff[offset:offset + 4]))[0]
+
+    @staticmethod
+    def FromUInt64(value):
+        return pack('>Q', value)
 
     @staticmethod
     def ToUInt64(buff, offset=0):

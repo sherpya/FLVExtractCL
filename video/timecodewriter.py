@@ -18,14 +18,15 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-class TimeCodeWriter(object):
+from video import VideoWriter
+
+class TimeCodeWriter(VideoWriter):
     def __init__(self, path):
-        self._path = path
-        self._fd = open(path, 'w')
-        self._fd.write('# timecode format v2\n')
+        super(TimeCodeWriter, self).__init__(path, 'w')
+        self.Write('# timecode format v2\n')
 
     def Write(self, timeStamp):
-        self._fd.write('%d\n' % timeStamp)
+        self.Write('%d\n' % timeStamp)
 
     def Finish(self):
-        self._fd.close()
+        self.Close()

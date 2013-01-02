@@ -22,13 +22,12 @@ from general import BitConverterBE
 from video import VideoWriter
 
 class RawH264Writer(VideoWriter):
-    __slots__  = [ '_fd', '_path', '_nalLengthSize' ]
+    __slots__  = [ '_nalLengthSize' ]
 
     def __init__(self, path):
-        self._path = path
+        super(RawH264Writer, self).__init__(path)
         self._startCode = '\x00\x00\x00\x01'
         self._nalLengthSize = 0
-        self._fd = open(path, 'wb')
 
     def WriteChunk(self, chunk, timeStamp=-1, frameType=-1):
         length = len(chunk)
@@ -58,8 +57,8 @@ class RawH264Writer(VideoWriter):
                 clen = BitConverterBE.ToUInt16(chunk, offset)
                 offset += 2
                 if (offset + clen) > length: break
-                self._fd.write(self._startCode)
-                self._fd.write(chunk[offset:offset + clen])
+                self.Write(self._startCode)
+                self.Write(chunk, offset, clen)
                 offset += clen
 
         # Video Data
@@ -77,9 +76,9 @@ class RawH264Writer(VideoWriter):
                     clen = BitConverterBE.ToUInt32(chunk, offset)
                 offset += self._nalLengthSize
                 if (offset + clen) > length: break
-                self._fd.write(self._startCode)
-                self._fd.write(chunk[offset:])
+                self.Write(self._startCode)
+                self.Write(chunk, offset, clen)
                 offset += clen
 
     def Finish(self, averageFrameRate):
-        self._fd.close()
+        self.Close()

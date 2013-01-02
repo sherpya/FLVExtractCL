@@ -22,11 +22,12 @@ from general import BitConverterLE
 from audio import AudioWriter
 
 class WAVWriter(AudioWriter):
-    __slots__  = [ '_fd', '_path', 'blockAlign' ]
-    __slots__ += [ '_bitsPerSample', '_channelCount', '_sampleRate', '_blockAlign', '_canSeek' ]
+    __slots__  = [ 'blockAlign', '_bitsPerSample', '_channelCount', '_sampleRate', '_blockAlign' ]
     __slots__ += [ '_sampleLen', '_finalSampleLen', '_wroteHeaders' ]
 
     def __init__(self, path, bitsPerSample, channelCount, sampleRate):
+        super(WAVWriter, self).__init__(path)
+
         self.blockAlign = (bitsPerSample / 8) * channelCount
 
         # WAVTools.WAVWriter
@@ -38,42 +39,25 @@ class WAVWriter(AudioWriter):
         self._sampleLen = self._finalSampleLen = 0
         self._wroteHeaders = False
 
-        self._path = path
-        self._fd = open(path, 'wb')
-        try:
-            self._fd.tell()
-        except IOError:
-            self._canSeek = False
-        else:
-            self._canSeek = True
-
     def WriteChunk(self, chunk, timeStamp=None):
-        self.Write(chunk, len(chunk) / self.blockAlign)
-
-    def Finish(self):
-        self.Close()
-
-    def WriteFourCC(self, fourCC):
-        if len(fourCC) != 4:
-            raise Exception('Invalid fourCC length')
-        self._fd.write(fourCC)
+        self.WriteSamples(chunk, len(chunk) / self.blockAlign)
 
     def WriteHeaders(self):
         dataChunkSize = self.GetDataChunkSize(self._finalSampleLen)
 
         self.WriteFourCC('RIFF')
-        self._fd.write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
+        self.Write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
         self.WriteFourCC('WAVE')
         self.WriteFourCC('fmt ')
-        self._fd.write(BitConverterLE.FromUInt32(16))
-        self._fd.write(BitConverterLE.FromUInt16(1))
-        self._fd.write(BitConverterLE.FromUInt16(self._channelCount))
-        self._fd.write(BitConverterLE.FromUInt32(self._sampleRate))
-        self._fd.write(BitConverterLE.FromUInt32(self._sampleRate * self._blockAlign))
-        self._fd.write(BitConverterLE.FromUInt16(self._blockAlign))
-        self._fd.write(BitConverterLE.FromUInt16(self._bitsPerSample))
+        self.Write(BitConverterLE.FromUInt32(16))
+        self.Write(BitConverterLE.FromUInt16(1))
+        self.Write(BitConverterLE.FromUInt16(self._channelCount))
+        self.Write(BitConverterLE.FromUInt32(self._sampleRate))
+        self.Write(BitConverterLE.FromUInt32(self._sampleRate * self._blockAlign))
+        self.Write(BitConverterLE.FromUInt16(self._blockAlign))
+        self.Write(BitConverterLE.FromUInt16(self._bitsPerSample))
         self.WriteFourCC('data')
-        self._fd.write(BitConverterLE.FromUInt32(dataChunkSize))
+        self.Write(BitConverterLE.FromUInt32(dataChunkSize))
 
     def GetDataChunkSize(self, sampleCount):
         maxFileSize = 0x7ffffffe
@@ -83,28 +67,25 @@ class WAVWriter(AudioWriter):
             dataSize = ((maxFileSize - 44) / self._blockAlign) * self._blockAlign
         return dataSize
 
-    def Close(self):
+    def Finish(self):
         if ((self._sampleLen * self._blockAlign) & 1) == 1:
-            self._fd.write('\x00')
+            self.Write('\x00')
 
         if self._sampleLen != self._finalSampleLen:
-            if not self._canSeek:
-                raise Exception('Samples written differs from the expected sample count')
-
             dataChunkSize = self.GetDataChunkSize(self._sampleLen)
-            self._fd.seek(4)
-            self._fd.write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
-            self._fd.seek(40)
-            self._fd.write(BitConverterLE.FromUInt32(dataChunkSize))
+            self.Seek(4)
+            self.Write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
+            self.Seek(40)
+            self.Write(BitConverterLE.FromUInt32(dataChunkSize))
 
-        self._fd.close()
+        self.Close()
 
-    def Write(self, buff, sampleCount):
+    def WriteSamples(self, buff, sampleCount):
         if sampleCount <= 0: return
 
         if not self._wroteHeaders:
             self.WriteHeaders()
             self._wroteHeaders = True
 
-        self._fd.write(buff) # length should be sampleCount * self._blockAlign
+        self.Write(buff, 0, sampleCount * self._blockAlign)
         self._sampleLen += sampleCount

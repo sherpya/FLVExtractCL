@@ -58,7 +58,7 @@ class VideoFormat(object):
     QQVGA   = (160, 120)
 
 class AVIWriter(VideoWriter):
-    __slots__  = [ '_fd', '_path', '_codecID', '_warnings', '_isAlphaWriter', '_alphaWriter' ]
+    __slots__  = [ '_codecID', '_warnings', '_isAlphaWriter', '_alphaWriter' ]
     __slots__ += [ '_width', '_height', '_frameCount' ]
     __slots__ += [ '_index', '_moviDataSize' ]
 
@@ -74,11 +74,6 @@ class AVIWriter(VideoWriter):
     #     (frames)    224   ???
     #   idx1          ???   ???
 
-    def WriteFourCC(self, fourCC):
-        if len(fourCC) != 4:
-            raise Exception('Invalid fourCC length')
-        self._fd.write(fourCC)
-
     def CodecFourCC(self):
         if self._codecID == VideoTagHeader.H263:
             return 'FLV1'
@@ -88,7 +83,7 @@ class AVIWriter(VideoWriter):
             return 'FSV1'
 
     def __init__(self, path, codecID, warnings, isAlphaWriter=False):
-        self._path = path
+        super(AVIWriter, self).__init__(path)
         self._codecID = codecID
         self._isAlphaWriter = isAlphaWriter
         self._alphaWriter = None
@@ -101,76 +96,74 @@ class AVIWriter(VideoWriter):
         if codecID not in (VideoTagHeader.H263, VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2, VideoTagHeader.VP6, VideoTagHeader.VP6v2):
             raise Exception('Unsupported video codec')
 
-        self._fd = open(path, 'wb')
-
         if (codecID == VideoTagHeader.VP6v2) and not isAlphaWriter:
             self._alphaWriter = AVIWriter(path[:-4] + 'alpha.avi', codecID, warnings, True)
 
         self.WriteFourCC('RIFF')
-        self._fd.write(BitConverterLE.FromUInt32(0)) # chunk size
+        self.Write(BitConverterLE.FromUInt32(0)) # chunk size
         self.WriteFourCC('AVI ')
 
         self.WriteFourCC('LIST')
-        self._fd.write(BitConverterLE.FromUInt32(192))
+        self.Write(BitConverterLE.FromUInt32(192))
         self.WriteFourCC('hdrl')
 
         self.WriteFourCC('avih')
-        self._fd.write(BitConverterLE.FromUInt32(56))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0x10))
-        self._fd.write(BitConverterLE.FromUInt32(0)) # frame count
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(1))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0)) # width
-        self._fd.write(BitConverterLE.FromUInt32(0)) # height
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(56))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0x10))
+        self.Write(BitConverterLE.FromUInt32(0)) # frame count
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(1))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0)) # width
+        self.Write(BitConverterLE.FromUInt32(0)) # height
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
 
         self.WriteFourCC('LIST')
-        self._fd.write(BitConverterLE.FromUInt32(116))
+        self.Write(BitConverterLE.FromUInt32(116))
         self.WriteFourCC('strl')
 
         self.WriteFourCC('strh')
-        self._fd.write(BitConverterLE.FromUInt32(56))
+        self.Write(BitConverterLE.FromUInt32(56))
         self.WriteFourCC('vids')
         self.WriteFourCC(self.CodecFourCC())
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0)) # frame rate denominator
-        self._fd.write(BitConverterLE.FromUInt32(0)) # frame rate numerator
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0)) # frame count
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromInt32(-1))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt16(0))
-        self._fd.write(BitConverterLE.FromUInt16(0))
-        self._fd.write(BitConverterLE.FromUInt16(0)) # width
-        self._fd.write(BitConverterLE.FromUInt16(0)) # height
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0)) # frame rate denominator
+        self.Write(BitConverterLE.FromUInt32(0)) # frame rate numerator
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0)) # frame count
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromInt32(-1))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt16(0))
+        self.Write(BitConverterLE.FromUInt16(0))
+        self.Write(BitConverterLE.FromUInt16(0)) # width
+        self.Write(BitConverterLE.FromUInt16(0)) # height
 
         self.WriteFourCC('strf')
-        self._fd.write(BitConverterLE.FromUInt32(40))
-        self._fd.write(BitConverterLE.FromUInt32(40))
-        self._fd.write(BitConverterLE.FromUInt32(0)) # width
-        self._fd.write(BitConverterLE.FromUInt32(0)) # height
-        self._fd.write(BitConverterLE.FromUInt16(1))
-        self._fd.write(BitConverterLE.FromUInt16(24))
+        self.Write(BitConverterLE.FromUInt32(40))
+        self.Write(BitConverterLE.FromUInt32(40))
+        self.Write(BitConverterLE.FromUInt32(0)) # width
+        self.Write(BitConverterLE.FromUInt32(0)) # height
+        self.Write(BitConverterLE.FromUInt16(1))
+        self.Write(BitConverterLE.FromUInt16(24))
     
         self.WriteFourCC(self.CodecFourCC())
-        self._fd.write(BitConverterLE.FromUInt32(0)) # biSizeImage
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0)) # biSizeImage
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Write(BitConverterLE.FromUInt32(0))
     
         self.WriteFourCC('LIST')
-        self._fd.write(BitConverterLE.FromUInt32(0)) # chunk size
+        self.Write(BitConverterLE.FromUInt32(0)) # chunk size
         self.WriteFourCC('movi')
 
     def WriteChunk(self, chunk, timeStamp, frameType):
@@ -203,11 +196,11 @@ class AVIWriter(VideoWriter):
             self.GetFrameSize(chunk)
 
         self.WriteFourCC('00dc')
-        self._fd.write(BitConverterLE.FromInt32(length))
-        self._fd.write(chunk[offset:offset + length])
+        self.Write(BitConverterLE.FromInt32(length))
+        self.Write(chunk, offset, length)
 
         if (length % 2) != 0:
-            self._fd.write('\x00')
+            self.Write('\x00')
             length += 1
 
         self._moviDataSize += length + 8
@@ -299,49 +292,49 @@ class AVIWriter(VideoWriter):
         indexDataSize = self._frameCount * 16
 
         self.WriteFourCC('idx1')
-        self._fd.write(BitConverterLE.FromUInt32(indexDataSize))
+        self.Write(BitConverterLE.FromUInt32(indexDataSize))
 
         for i in xrange(self._frameCount):
             self.WriteFourCC('00dc')
-            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 0]))
-            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 1]))
-            self._fd.write(BitConverterLE.FromUInt32(self._index[(i * 3) + 2]))
+            self.Write(BitConverterLE.FromUInt32(self._index[(i * 3) + 0]))
+            self.Write(BitConverterLE.FromUInt32(self._index[(i * 3) + 1]))
+            self.Write(BitConverterLE.FromUInt32(self._index[(i * 3) + 2]))
 
         self._indexChunkSize = indexDataSize + 8
 
     def Finish(self, averageFrameRate):
         self.WriteIndexChunk()
 
-        self._fd.seek(4)
-        self._fd.write(BitConverterLE.FromUInt32(224 + self._moviDataSize + self._indexChunkSize - 8))
+        self.Seek(4)
+        self.Write(BitConverterLE.FromUInt32(224 + self._moviDataSize + self._indexChunkSize - 8))
 
-        self._fd.seek(24 + 8)
-        self._fd.write(BitConverterLE.FromUInt32(0))
-        self._fd.seek(12, SEEK_CUR)
-        self._fd.write(BitConverterLE.FromUInt32(self._frameCount))
-        self._fd.seek(12, SEEK_CUR)
-        self._fd.write(BitConverterLE.FromUInt32(self._width))
-        self._fd.write(BitConverterLE.FromUInt32(self._height))
+        self.Seek(24 + 8)
+        self.Write(BitConverterLE.FromUInt32(0))
+        self.Seek(12, SEEK_CUR)
+        self.Write(BitConverterLE.FromUInt32(self._frameCount))
+        self.Seek(12, SEEK_CUR)
+        self.Write(BitConverterLE.FromUInt32(self._width))
+        self.Write(BitConverterLE.FromUInt32(self._height))
 
-        self._fd.seek(100 + 28)
-        self._fd.write(BitConverterLE.FromUInt32(averageFrameRate.denominator))
-        self._fd.write(BitConverterLE.FromUInt32(averageFrameRate.numerator))
-        self._fd.seek(4, SEEK_CUR)
-        self._fd.write(BitConverterLE.FromUInt32(self._frameCount))
-        self._fd.seek(16, SEEK_CUR)
-        self._fd.write(BitConverterLE.FromUInt16(self._width))
-        self._fd.write(BitConverterLE.FromUInt16(self._height))
+        self.Seek(100 + 28)
+        self.Write(BitConverterLE.FromUInt32(averageFrameRate.denominator))
+        self.Write(BitConverterLE.FromUInt32(averageFrameRate.numerator))
+        self.Seek(4, SEEK_CUR)
+        self.Write(BitConverterLE.FromUInt32(self._frameCount))
+        self.Seek(16, SEEK_CUR)
+        self.Write(BitConverterLE.FromUInt16(self._width))
+        self.Write(BitConverterLE.FromUInt16(self._height))
 
-        self._fd.seek(164 + 12)
-        self._fd.write(BitConverterLE.FromUInt32(self._width))
-        self._fd.write(BitConverterLE.FromUInt32(self._height))
-        self._fd.seek(8, SEEK_CUR)
-        self._fd.write(BitConverterLE.FromUInt32(self._width * self._height * 6))
+        self.Seek(164 + 12)
+        self.Write(BitConverterLE.FromUInt32(self._width))
+        self.Write(BitConverterLE.FromUInt32(self._height))
+        self.Seek(8, SEEK_CUR)
+        self.Write(BitConverterLE.FromUInt32(self._width * self._height * 6))
 
-        self._fd.seek(212 + 4)
-        self._fd.write(BitConverterLE.FromUInt32(self._moviDataSize + 4))
+        self.Seek(212 + 4)
+        self.Write(BitConverterLE.FromUInt32(self._moviDataSize + 4))
 
-        self._fd.close()
+        self.Close()
 
         if self._alphaWriter is not None:
             self._alphaWriter.Finish(averageFrameRate)

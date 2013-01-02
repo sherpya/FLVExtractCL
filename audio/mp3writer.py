@@ -74,12 +74,12 @@ class MP3FrameHeader(BigEndianStructure):
                   ]
 
 class MP3Writer(AudioWriter):
-    __slots__  = [ '_fd', '_path', '_warnings', '_chunkBuffer', '_delayWrite', '_writeVBRHeader', '_totalFrameLength' ]
+    __slots__  = [ '_warnings', '_chunkBuffer', '_delayWrite', '_writeVBRHeader', '_totalFrameLength' ]
     __slots__ += [ '_frameOffsets', '_isVBR', '_hasVBRHeader', '_firstBitRate' ]
     __slots__ += [ '_mpegVersion', '_sampleRate', '_channelMode', '_firstFrameHeader' ]
 
     def __init__(self, path, warnings):
-        self._path = path
+        super(MP3Writer, self).__init__(path)
         self._warnings = warnings
         self._delayWrite = True
 
@@ -90,8 +90,6 @@ class MP3Writer(AudioWriter):
         self._firstBitRate = 0
         self._totalFrameLength = 0
         self._mpegVersion = self._sampleRate = self._channelMode = self._firstFrameHeader = 0
-
-        self._fd = open(path, 'wb')
 
     def WriteChunk(self, chunk, timeStamp=None):
         self._chunkBuffer.append(chunk)
@@ -106,13 +104,13 @@ class MP3Writer(AudioWriter):
         self.Flush()
 
         if self._writeVBRHeader:
-            self._fd.seek(0)
+            self.Seek(0)
             self.WriteVBRHeader(False)
-        self._fd.close()
+        self.Close()
 
     def Flush(self):
         for chunk in self._chunkBuffer:
-            self._fd.write(chunk)
+            self.Write(chunk)
         self._chunkBuffer = []
 
     def ParseMP3Frames(self, buff):
@@ -197,7 +195,7 @@ class MP3Writer(AudioWriter):
             for i in xrange(100):
                 frameIndex = int((i / 100.0) * len(self._frameOffsets))
                 buff[dataOffset + 16 + i] = (self._frameOffsets[frameIndex] / float(self._totalFrameLength) * 250)
-        self._fd.write(buff)
+        self.Write(buff)
 
     @staticmethod
     def GetFrameLength(mpegVersion, bitRate, sampleRate, padding):

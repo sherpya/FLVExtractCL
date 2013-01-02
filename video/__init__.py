@@ -20,6 +20,7 @@
 
 __all__ = [ 'VideoTagHeader', 'TimeCodeWriter', 'AVIWriter', 'RawH264Writer' ]
 
+from general import Writer
 from ctypes import BigEndianStructure, c_ubyte
 
 class VideoTagHeader(BigEndianStructure):
@@ -29,13 +30,11 @@ class VideoTagHeader(BigEndianStructure):
                 ('CodecID',         c_ubyte, 4)
                 ]
 
-class VideoWriter(object):
+class VideoWriter(Writer):
     def WriteChunk(self, chunk, timeStamp, frameType):
         raise Exception('interface')
     def Finish(self, averageFrameRate):
         raise Exception('interface')
-    def GetPath(self):
-        return self._path
 
 from timecodewriter import TimeCodeWriter
 from aviwriter import AVIWriter

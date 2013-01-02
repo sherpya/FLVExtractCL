@@ -31,7 +31,7 @@ class OggPacket(object):
         self.Data = data
 
 class SpeexWriter(AudioWriter):
-    __slots__  = [ '_fd', '_path', 'serialNumber' ]
+    __slots__  = [ '_serialNumber' ]
 
     _vendorString = 'FLV Extract'
     _sampleRate = 16000
@@ -42,11 +42,10 @@ class SpeexWriter(AudioWriter):
     __slots__ += [ '_packetList', '_packetListDataSize' ]
     __slots__ += ['_pageBuff', '_pageBuffOffset', '_pageSequenceNumber', '_granulePosition' ]
     def __init__(self, path, serialNumber):
-        self._path = path
+        super(SpeexWriter, self).__init__(path)
         self._serialNumber = serialNumber
 
-        self._fd = open(path, 'wb')
-        self._fd.seek((28 + 80) + (28 + 8 + len(SpeexWriter._vendorString))) # Speex header + Vorbis comment
+        self.Seek((28 + 80) + (28 + 8 + len(SpeexWriter._vendorString))) # Speex header + Vorbis comment
         self._packetList = []
         self._packetListDataSize = 0
 
@@ -108,13 +107,13 @@ class SpeexWriter(AudioWriter):
     def Finish(self):
         self.WritePage()
         self.FlushPage(True)
-        self._fd.seek(0)
+        self.Seek(0)
         self._pageSequenceNumber = 0
         self._granulePosition = 0
         self.WriteSpeexHeaderPacket()
         self.WriteVorbisCommentPacket()
         self.FlushPage(False)
-        self._fd.close()
+        self.Close()
 
     def WriteFramePacket(self, data, startBit, endBit):
         lengthBits = endBit - startBit
@@ -202,7 +201,7 @@ class SpeexWriter(AudioWriter):
 
         crc = OggCRC.Calculate(self._pageBuff, 0, self._pageBuffOffset)
         pos = 22        ; self._pageBuff[pos:pos + 4] = BitConverterLE.FromUInt32(crc)
-        self._fd.write(self._pageBuff[:self._pageBuffOffset])
+        self.Write(self._pageBuff, 0, self._pageBuffOffset)
         self._pageBuffOffset = 0
 
     def WriteToPage(self, data, offset, length):
