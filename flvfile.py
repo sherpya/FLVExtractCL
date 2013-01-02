@@ -96,7 +96,7 @@ class FLVFile(object):
             raise FLVException('Not a flv file') 
 
         if not os.path.isdir(self._outputDir):
-            raise FLVException('Ouput directory doesn\'t exists or not a directory')
+            raise FLVException('Output directory doesn\'t exists or not a directory')
 
         _flags = self.ReadUInt8()
         dataOffset = self.ReadUInt32()
