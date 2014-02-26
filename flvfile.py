@@ -93,7 +93,7 @@ class FLVFile(object):
         self.Seek(0)
 
         if self._fd.read(4) != 'FLV\x01':
-            raise FLVException('Not a flv file') 
+            raise FLVException('Not a flv file')
 
         if not os.path.isdir(self._outputDir):
             raise FLVException('Output directory doesn\'t exists or not a directory')

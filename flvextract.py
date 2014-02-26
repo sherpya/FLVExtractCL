@@ -25,7 +25,7 @@ from flvfile import FLVFile
 
 def parse_options():
     parser = OptionParser(usage='%prog [options] source')
-    parser.add_option('-v', dest='extractVideo',help='Extract video.', action='store_true', default=False)
+    parser.add_option('-v', dest='extractVideo', help='Extract video.', action='store_true', default=False)
     parser.add_option('-a', dest='extractAudio', help='Extract audio.', action='store_true', default=False)
     parser.add_option('-t', dest='extractTimeCodes', help='Extract timecodes.', action='store_true', default=False)
     parser.add_option('-o', dest='overwrite', help='Overwrite output files without prompting.', action='store_true', default=False)
