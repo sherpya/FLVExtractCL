@@ -1,210 +1,218 @@
-#
 # FLV Extract
-# Copyright (C) 2006-2012  J.D. Purcell (moitah@yahoo.com)
-# Python port by Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (C) 2006-2012 J.D. Purcell (moitah@yahoo.com)
+# Python port (C) 2012-2024 Gianluigi Tiesi <sherpya@gmail.com>
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from abc import ABC
+from ctypes import c_ulonglong
+from enum import IntEnum
+from pathlib import Path
+from typing import List, BinaryIO
 
-from ctypes import BigEndianStructure, c_uint
-
-from general import BitConverterBE
-from audio import AudioWriter
+from general import BitHelper
+from interfaces import IAudioWriter
 
 # http://www.mp3-tech.org/programmer/frame_header.html
 
-MPEG1BitRate        = [ 0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 ]
-MPEG2XBitRate       = [ 0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160 ]
-MPEG1SampleRate     = [ 44100, 48000, 32000 ]
-MPEG20SampleRate    = [ 22050, 24000, 16000 ]
-MPEG25SampleRate    = [ 11025, 12000, 8000 ]
+MPEG1BitRate = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+MPEG2XBitRate = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+MPEG1SampleRate = [44100, 48000, 32000]
+MPEG20SampleRate = [22050, 24000, 16000]
+MPEG25SampleRate = [11025, 12000, 8000]
 
-class MPEGVersion:
-    MPEG25      = 0b00
-    RESERVED    = 0b01
-    MPEG2       = 0b10
-    MPEG1       = 0b11
 
-class LAYER:
-    RESERVED    = 0b00
-    LAYER3      = 0b01
-    LAYER2      = 0b10
-    LAYER1      = 0b11
+class MPEGVersion(IntEnum):
+    MPEG25 = 0
+    RESERVED = 1
+    MPEG2 = 2
+    MPEG1 = 3
 
-class BITRATE:
-    FREE        = 0b0000
-    BAD         = 0b1111
 
-class SAMPLERATE:
-    RESERVED    = 0b11
+class Layer(IntEnum):
+    RESERVED = 0
+    LAYER3 = 1
+    LAYER2 = 2
+    LAYER1 = 3
 
-class CHANNELMODE:
-    STEREO      = 0b00
-    JOINTSTEREO = 0b01
-    DUALMONO    = 0b10
-    MONO        = 0b11
 
-class MP3FrameHeader(BigEndianStructure):
-    _fields_ = [
-                  ('frameSync',     c_uint, 11),
-                  ('mpegVersion',   c_uint, 2),
-                  ('layer',         c_uint, 2),
-                  ('protectionBit', c_uint, 1),
-                  ('bitRate',       c_uint, 4),
-                  ('sampleRate',    c_uint, 2),
-                  ('paddingBit',    c_uint, 1),
-                  ('privateBit',    c_uint, 1),
-                  ('channelMode',   c_uint, 2),
-                  ('modeExt',       c_uint, 2),
-                  ('copyright',     c_uint, 1),
-                  ('original',      c_uint, 1),
-                  ('emphasis',      c_uint, 2)
-                  ]
+class Bitrate(IntEnum):
+    FREE = 0
+    BAD = 15
 
-class MP3Writer(AudioWriter):
-    __slots__  = [ '_warnings', '_chunkBuffer', '_delayWrite', '_writeVBRHeader', '_totalFrameLength' ]
-    __slots__ += [ '_frameOffsets', '_isVBR', '_hasVBRHeader', '_firstBitRate' ]
-    __slots__ += [ '_mpegVersion', '_sampleRate', '_channelMode', '_firstFrameHeader' ]
 
-    def __init__(self, path, warnings):
-        super(MP3Writer, self).__init__(path)
+class Samplerate(IntEnum):
+    RESERVED = 3
+
+
+class ChannelMode(IntEnum):
+    STEREO = 0
+    JOINTSTEREO = 1
+    DUALMONO = 2
+    MONO = 3
+
+
+class MP3Writer(IAudioWriter, ABC):
+    _path: Path
+    _fd: BinaryIO
+    _warnings: List[str]
+    _chunk_buffer: List[bytes]
+    _frame_offsets: List[int]
+    _total_frame_length: int = 0
+    _is_vbr: bool = False
+    _delay_write: bool
+    _has_vbr_header: bool = False
+    _write_vbr_header: bool = False
+    _first_bit_rate: int = 0
+    _mpeg_version: int = 0
+    _sample_rate: int = 0
+    _channel_mode: int = 0
+    _first_frame_header: int = 0
+
+    def __init__(self, path: Path, warnings: List[str]):
+        self._path = path
+        self._fd = self._path.open('wb')
         self._warnings = warnings
-        self._delayWrite = True
+        self._delay_write = True
+        self._chunk_buffer = []
+        self._frame_offsets = []
 
-        self._chunkBuffer = []
-        self._frameOffsets = []
+    def write_chunk(self, chunk: bytes, timestamp: int) -> None:
+        self._chunk_buffer.append(chunk)
+        self.parse_mp3_frames(chunk)
 
-        self._isVBR = self._hasVBRHeader = self._writeVBRHeader = False
-        self._firstBitRate = 0
-        self._totalFrameLength = 0
-        self._mpegVersion = self._sampleRate = self._channelMode = self._firstFrameHeader = 0
+        if self._delay_write and (self._total_frame_length >= 65536):
+            self._delay_write = False
+        if not self._delay_write:
+            self.flush()
 
-    def WriteChunk(self, chunk, timeStamp=None):
-        self._chunkBuffer.append(chunk)
-        self.ParseMP3Frames(chunk)
+    def finish(self) -> None:
+        self.flush()
+        if self._write_vbr_header:
+            self._fd.seek(0)
+            self.write_vbr_header(False)
+        self._fd.close()
 
-        if self._delayWrite and (self._totalFrameLength >= 65536):
-            self._delayWrite = False
-        if not self._delayWrite:
-            self.Flush()
+    def flush(self) -> None:
+        for chunk in self._chunk_buffer:
+            self._fd.write(chunk)
+        self._chunk_buffer = []
 
-    def Finish(self):
-        self.Flush()
-
-        if self._writeVBRHeader:
-            self.Seek(0)
-            self.WriteVBRHeader(False)
-        self.Close()
-
-    def Flush(self):
-        for chunk in self._chunkBuffer:
-            self.Write(chunk)
-        self._chunkBuffer = []
-
-    def ParseMP3Frames(self, buff):
+    def parse_mp3_frames(self, buff: bytes) -> None:
         offset = 0
         length = len(buff)
 
         while length >= 4:
-            hdr = MP3FrameHeader.from_buffer_copy(buff, offset)
-
-            if hdr.frameSync != 0b11111111111:
-                print 'Invalid framesync', bin(hdr.frameSync)
+            header = c_ulonglong(int.from_bytes(buff[offset:offset + 4], 'big') << 32)
+            if BitHelper.read(header, 11) != 0x7ff:
+                self._warnings.append('Invalid frame sync')
                 break
 
-            if hdr.mpegVersion == MPEGVersion.RESERVED \
-                or hdr.layer != LAYER.LAYER3 \
-                or hdr.bitRate in (BITRATE.FREE, BITRATE.BAD) \
-                or hdr.sampleRate == SAMPLERATE.RESERVED:
-                print 'Invalid frame values'
+            mpeg_version = BitHelper.read(header, 2)
+            layer = BitHelper.read(header, 2)
+            BitHelper.read(header, 1)
+            bitrate = BitHelper.read(header, 4)
+            samplerate = BitHelper.read(header, 2)
+            padding = BitHelper.read(header, 1)
+            channel_mode = BitHelper.read(header, 2)
+
+            if (mpeg_version == MPEGVersion.RESERVED
+                    or layer != 1
+                    or bitrate in (Bitrate.FREE, Bitrate.BAD)
+                    or samplerate == Samplerate.RESERVED):
+                self._warnings.append(f'Malformed frame')
                 break
 
-            bitRate = (MPEG1BitRate[hdr.bitRate] if (hdr.mpegVersion == MPEGVersion.MPEG1) else MPEG2XBitRate[hdr.bitRate]) * 1000
-            if hdr.mpegVersion == MPEGVersion.MPEG1:
-                sampleRate = MPEG1SampleRate[hdr.sampleRate]
-            elif hdr.mpegVersion == MPEGVersion.MPEG2:
-                sampleRate = MPEG20SampleRate[hdr.sampleRate]
+            bitrate = (MPEG1BitRate[bitrate] if (mpeg_version == MPEGVersion.MPEG1) else MPEG2XBitRate[bitrate]) * 1000
+
+            if mpeg_version == MPEGVersion.MPEG1:
+                samplerate = MPEG1SampleRate[samplerate]
+            elif mpeg_version == MPEGVersion.MPEG2:
+                samplerate = MPEG20SampleRate[samplerate]
             else:
-                sampleRate = MPEG25SampleRate[hdr.sampleRate]
+                samplerate = MPEG25SampleRate[samplerate]
 
-            frameLen = self.GetFrameLength(hdr.mpegVersion, bitRate, sampleRate, hdr.paddingBit)
-            if frameLen > length:
+            frame_len = self.get_frame_length(mpeg_version, bitrate, samplerate, padding)
+            if frame_len > length:
                 break
 
-            isVBRHeaderFrame = False
-            if len(self._frameOffsets) == 0:
-                o = offset + self.GetFrameDataOffset(hdr.mpegVersion, hdr.channelMode)
-                if buff[o:o + 4] == 'Xing':
-                    isVBRHeaderFrame = True
-                    self._delayWrite = False
-                    self._hasVBRHeader = True
+            is_vbr_header_frame = False
+            if len(self._frame_offsets) == 0:
+                o = offset + self.get_frame_data_offset(mpeg_version, channel_mode)
+                if buff[o: o + 4] == b'Xing':
+                    is_vbr_header_frame = True
+                    self._delay_write = False
+                    self._has_vbr_header = True
 
-            if isVBRHeaderFrame:
+            if is_vbr_header_frame:
                 pass
-            elif self._firstBitRate == 0:
-                self._firstBitRate = bitRate
-                self._mpegVersion = hdr.mpegVersion
-                self._sampleRate = sampleRate
-                self._channelMode = hdr.channelMode
-                self._firstFrameHeader = BitConverterBE.ToUInt32(buff, offset)
-            elif not self._isVBR and (bitRate != self._firstBitRate):
-                self._isVBR = True
-                if self._hasVBRHeader:
+            elif self._first_bit_rate == 0:
+                self._first_bit_rate = bitrate
+                self._mpeg_version = mpeg_version
+                self._sample_rate = samplerate
+                self._channel_mode = channel_mode
+                self._first_frame_header = int.from_bytes(buff[offset:offset + 4], 'big')
+            elif not self._is_vbr and (bitrate != self._first_bit_rate):
+                self._is_vbr = True
+                if self._has_vbr_header:
                     pass
-                elif self._delayWrite:
-                    self.WriteVBRHeader(True)
-                    self._writeVBRHeader = True
-                    self._delayWrite = False
+                elif self._delay_write:
+                    self.write_vbr_header(True)
+                    self._write_vbr_header = True
+                    self._delay_write = False
                 else:
                     self._warnings.append('Detected VBR too late, cannot add VBR header')
 
-            self._frameOffsets.append(self._totalFrameLength + offset)
+            self._frame_offsets.append(self._total_frame_length + offset)
 
-            offset += frameLen
-            length -= frameLen
-        self._totalFrameLength += len(buff)
+            offset += frame_len
+            length -= frame_len
+        self._total_frame_length += len(buff)
 
-    def WriteVBRHeader(self, isPlaceholder):
-        buff = bytearray(self.GetFrameLength(self._mpegVersion, 64000, self._sampleRate, 0))
-        if not isPlaceholder:
-            header = self._firstFrameHeader
-            dataOffset = self.GetFrameDataOffset(self._mpegVersion, self._channelMode)
-            header &= 0xffff0dff    # Clear bitrate and padding fields
-            header |= 0x00010000    # Set protection bit (indicates that CRC is NOT present)
-            header |= (5 if self._mpegVersion == MPEGVersion.MPEG1 else 8) << 12 # 64 kbit/sec
+    def write_vbr_header(self, is_placeholder: bool) -> None:
+        buff = bytearray(self.get_frame_length(self._mpeg_version, 64000, self._sample_rate, 0))
+        if not is_placeholder:
+            header = self._first_frame_header
+            data_offset = self.get_frame_data_offset(self._mpeg_version, self._channel_mode)
+            header &= 0xffff0dff  # Clear bitrate and padding fields
+            header |= 0x00010000  # Set protection bit (indicates that CRC is NOT present)
+            header |= (5 if self._mpeg_version == MPEGVersion.MPEG1 else 8) << 12  # 64 kbit/sec
 
-            pos = 0                 ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(header)
+            buff[0:4] = header.to_bytes(4, 'big')
+            buff[data_offset: data_offset + 4] = b'Xing'
+            # Flags
+            buff[data_offset + 4: data_offset + 4 + 4] = int.to_bytes(0x7, 4, 'big')
+            # Frame count
+            buff[data_offset + 8:data_offset + 8 + 4] = len(self._frame_offsets).to_bytes(4, 'big')
+            # File Length
+            buff[data_offset + 12:data_offset + 12 + 4] = self._total_frame_length.to_bytes(4, 'big')
 
-            pos = dataOffset        ; buff[pos:pos + 4] = 'Xing'
-            pos = dataOffset + 4    ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(0x7) # Flags
-            pos = dataOffset + 8    ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(len(self._frameOffsets))    # Frame count
-            pos = dataOffset + 12   ; buff[pos:pos + 4] = BitConverterBE.FromUInt32(self._totalFrameLength)     # File Length 
-
-            for i in xrange(100):
-                frameIndex = int((i / 100.0) * len(self._frameOffsets))
-                buff[dataOffset + 16 + i] = (self._frameOffsets[frameIndex] / float(self._totalFrameLength) * 250)
-        self.Write(buff)
-
-    @staticmethod
-    def GetFrameLength(mpegVersion, bitRate, sampleRate, padding):
-        return ((144 if (mpegVersion == MPEGVersion.MPEG1) else 72) * bitRate / sampleRate) + padding
+            for i in range(100):
+                frame_index = int((i / 100.0) * len(self._frame_offsets))
+                buff[data_offset + 16 + i] = int(self._frame_offsets[frame_index] / self._total_frame_length * 250)
+        self._fd.write(buff)
 
     @staticmethod
-    def GetFrameDataOffset(mpegVersion, channelMode):
-        if mpegVersion == MPEGVersion.MPEG1:
-            o = 17 if (channelMode == CHANNELMODE.MONO) else 32
+    def get_frame_length(mpeg_version: int, bitrate: int, samplerate: int, padding: int) -> int:
+        return ((144 if (mpeg_version == MPEGVersion.MPEG1) else 72) * bitrate // samplerate) + padding
+
+    @staticmethod
+    def get_frame_data_offset(mpeg_version: int, channel_mode: int) -> int:
+        if mpeg_version == MPEGVersion.MPEG1:
+            o = 17 if (channel_mode == ChannelMode.MONO) else 32
         else:
-            o = 9 if (channelMode == CHANNELMODE.MONO) else 17
+            o = 9 if (channel_mode == ChannelMode.MONO) else 17
         return o + 4

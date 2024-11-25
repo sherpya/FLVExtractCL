@@ -1,312 +1,356 @@
-#
 # FLV Extract
-# Copyright (C) 2006-2012  J.D. Purcell (moitah@yahoo.com)
-# Python port by Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (C) 2006-2012 J.D. Purcell (moitah@yahoo.com)
+# Python port (C) 2012-2024 Gianluigi Tiesi <sherpya@gmail.com>
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
-
-import os
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from abc import ABC
+from enum import IntEnum
 from fractions import Fraction
+from pathlib import Path
+from typing import List, BinaryIO, TextIO, Dict
 
-from general import BitConverterBE
-from audio import *
-from video import *
+from audio import MP3Writer, WAVWriter, AACWriter, SpeexWriter
+from interfaces import IDisposable, IAudioWriter, IVideoWriter, VideoCodecID, FLVException
+from video import AVIWriter, RawH264Writer
 
-class FLVException(Exception):
-    pass
 
-class DummyWriter(object):
-    def WriteChunk(self, *args):
-        pass
-    def Write(self, *args):
-        pass
-    def Finish(self, *args):
-        pass
-    def GetPath(self):
-        return None
+class DummyWriter:
+    def write_chunk(self, data: bytes, timestamp: int | None = None, frametype: int | None = None) -> None: ...
 
-class TAG(object):
-    AUDIO   = 8
-    VIDEO   = 9
-    SCRIPT  = 18
+    def write(self, timestamp: int) -> None: ...
 
-class FLVFile(object):
-    __slots__  = [ '_fd', '_inputPath', '_outputDir', '_fileOffset', '_fileLength' ]
-    __slots__ += [ '_audioWriter', '_videoWriter', '_timeCodeWriter', '_warnings' ]
+    def finish(self, average_framerate: Fraction | None = None) -> None: ...
 
-    def __init__(self, inputPath):
-        self._inputPath = inputPath
-        self._outputDir = os.path.abspath(os.path.dirname(inputPath))
-        self._fileOffset = 0
-        self._fileLength = os.path.getsize(self._inputPath)
-        self._audioWriter = self._videoWriter = self._timeCodeWriter = None
-        self._warnings = []
+    def unlink(self) -> None: ...
 
-        self._fd = open(inputPath, 'rb')
 
-    def SetOutputDirectory(self, outputDir):
-        self._outputDir = os.path.abspath(outputDir)
+class Tag(IntEnum):
+    AUDIO = 8
+    VIDEO = 9
+    SCRIPT = 18
 
-    def Dispose(self):
+
+class AudioFormat(IntEnum):
+    PCM = 0
+    ADPCM = 1
+    MP3 = 2
+    PCM_LE = 3
+    NELLY_16k = 4
+    NELLY_8k = 5
+    NELLYMOSER = 6
+    ALAW = 7
+    ULAW = 8
+    AAC = 10
+    SPEEX = 11
+    MP3_8k = 14
+
+
+SampleRates = [5512, 11025, 22050, 44100]
+
+
+class TimeCodeWriter:
+    _path: Path | None = None
+    _fd: TextIO | None = None
+
+    def __init__(self, path: Path | None):
+        if path is not None:
+            self._path = path
+            self._fd = self._path.open('w')
+            self._fd.write('# timecode format v2\n')
+
+    def write(self, timestamp: int) -> None:
+        if self._fd is not None:
+            self._fd.write(f'{timestamp}\n')
+
+    def finish(self) -> None:
+        if self._fd is not None:
+            self._fd.close()
+            self._fd = None
+            self._path = None
+
+    def unlink(self) -> None:
+        if self._path is not None:
+            self._path.unlink()
+
+
+class FLVFile(IDisposable, ABC):
+    _input_path: Path
+    output_directory: Path
+
+    _overwrite: bool = False
+    _fd: BinaryIO | None = None
+    _file_offset: int = 0
+    _file_length: int = 0
+
+    _audio_writer: IAudioWriter | DummyWriter | None = None
+    _video_writer: IVideoWriter | DummyWriter | None = None
+    _timecode_writer: TimeCodeWriter | DummyWriter | None = None
+
+    _video_timestamps: List[int]
+
+    _extract_audio: bool = False
+    _extract_video: bool = False
+    _extract_timecodes: bool = False
+
+    extracted_audio: bool = False
+    extracted_video: bool = False
+    extracted_timecodes: bool = False
+
+    average_framerate: Fraction | None
+    true_framerate: Fraction | None
+
+    warnings: List[str]
+
+    def __init__(self, input_path: Path):
+        self._input_path = input_path
+        self.output_directory = self._input_path.parent
+        self.warnings = []
+        self._fd = self._input_path.open('rb')
+        self._file_offset = 0
+        self._file_length = self._input_path.stat().st_size
+
+    def dispose(self) -> None:
+        assert self._fd is not None
         self._fd.close()
-        self.CloseOutput(None, True)
+        self._fd = None
+        self.close_output(None, True)
 
-    def Close(self):
-        self.Dispose()
+    def close(self) -> None:
+        self.dispose()
 
-    def AverageFrameRate(self):
-        if self._averageFrameRate is None: return 'N/A'
-        return '%f (%s)' % (self._averageFrameRate, self._averageFrameRate)
-
-    def TrueFrameRate(self):
-        if self._trueFrameRate is None: return 'N/A'
-        return '%f (%s)' % (self._trueFrameRate, self._trueFrameRate)
-
-    def Warnings(self):
-        return self._warnings
-
-    __slots__ += [ '_outputPathBase', '_overwrite', '_extractAudio', '_extractVideo', '_extractTimeCodes', '_videoTimeStamps' ]
-    __slots__ += [ '_averageFrameRate', '_trueFrameRate' ]
-    def ExtractStreams(self, extractAudio, extractVideo, extractTimeCodes, overwrite):
-        self._outputPathBase = os.path.join(self._outputDir, os.path.splitext(os.path.basename(self._inputPath))[0])
+    def extract_streams(self, extract_audio: bool, extract_video: bool, extract_timecodes: bool,
+                        overwrite: bool) -> None:
         self._overwrite = overwrite
-        self._extractAudio = extractAudio
-        self._extractVideo = extractVideo
-        self._extractTimeCodes = extractTimeCodes
-        self._videoTimeStamps = []
+        self._extract_audio = extract_audio
+        self._extract_video = extract_video
+        self._extract_timecodes = extract_timecodes
+        self._video_timestamps = []
 
-        self._extractedAudio = self._extractedVideo = self._extractedTimeCodes = False
+        self.seek(0)
 
-        self.Seek(0)
+        assert self._fd is not None
+        if self._file_length < 4 or self._fd.read(4) != b'FLV\x01':
+            if self._file_length >= 8 and self._fd.read(4) == b'ftyp':
+                raise FLVException('This is a MP4 file. YAMB or MP4Box can be used to extract streams.')
+            else:
+                raise FLVException('Not a flv file')
 
-        if self._fd.read(4) != 'FLV\x01':
-            raise FLVException('Not a flv file')
+        # TODO: check if the input uses an output file extension
+        # Please change the extension of this FLV file.
 
-        if not os.path.isdir(self._outputDir):
-            raise FLVException('Output directory doesn\'t exists or not a directory')
+        if not self.output_directory.is_dir():
+            raise FLVException("Output directory doesn't exists or not a directory")
 
-        _flags = self.ReadUInt8()
-        dataOffset = self.ReadUInt32()
+        _flags = self.read_uint8()
+        data_offset = self.read_uint32()
 
-        self.Seek(dataOffset)
+        self.seek(data_offset)
 
-        _prevTagSize = self.ReadUInt32()
-        while self._fileOffset < self._fileLength:
-            if not self.ReadTag(): break
-            if (self._fileLength - self._fileOffset) < 4: break
-            _prevTagSize = self.ReadUInt32()
+        _prev_tag_size = self.read_uint32()
+        while self._file_offset < self._file_length:
+            if not self.read_tag():
+                break
+            if (self._file_length - self._file_offset) < 4:
+                break
+            _prev_tag_size = self.read_uint32()
 
-        self._averageFrameRate = self.CalculateAverageFrameRate()
-        self._trueFrameRate = self.CalculateTrueFrameRate()
+        self.average_framerate = self.calculate_average_framerate()
+        self.true_framerate = self.calculate_true_framerate()
 
-        self.CloseOutput(self._averageFrameRate, False)
+        self.close_output(self.average_framerate, False)
 
-    def CloseOutput(self, averageFrameRate, disposing):
-        if self._videoWriter is not None:
-            self._videoWriter.Finish(averageFrameRate if averageFrameRate else Fraction(25, 1))
-            if disposing and self._videoWriter.GetPath() is not None:
-                os.unlink(self._videoWriter.GetPath())
-            self._videoWriter = None
+    def close_output(self, average_framerate: Fraction | None, disposing: bool) -> None:
+        if self._video_writer is not None:
+            self._video_writer.finish(average_framerate if average_framerate is not None else Fraction(25, 1))
+            if disposing:
+                self._video_writer.unlink()
+            self._video_writer = None
 
-        if self._audioWriter is not None:
-            self._audioWriter.Finish()
-            if disposing and self._audioWriter.GetPath() is not None:
-                os.unlink(self._audioWriter.GetPath())
-            self._audioWriter = None
+        if self._audio_writer is not None:
+            self._audio_writer.finish()
+            if disposing:
+                self._audio_writer.unlink()
+            self._audio_writer = None
 
-        if self._timeCodeWriter is not None:
-            self._timeCodeWriter.Finish()
-            if disposing and self._timeCodeWriter.GetPath() is not None:
-                os.unlink(self._timeCodeWriter.GetPath())
-            self._timeCodeWriter = None
+        if self._timecode_writer is not None:
+            self._timecode_writer.finish()
+            if disposing:
+                self._timecode_writer.unlink()
+            self._timecode_writer = None
 
-    def GetAudioWriter(self, mediaInfo):
-        if mediaInfo.SoundFormat in (AudioTagHeader.MP3, AudioTagHeader.MP3_8k):
-            path = self._outputPathBase + '.mp3'
-            if not self.CanWriteTo(path): return DummyWriter()
-            return MP3Writer(path, self._warnings)
-        elif mediaInfo.SoundFormat in (AudioTagHeader.PCM, AudioTagHeader.PCM_LE):
-            path = self._outputPathBase + '.wav'
-            if not self.CanWriteTo(path): return DummyWriter()
-            sampleRate = AudioTagHeader.SoundRates[mediaInfo.SoundRate]
-            bits = AudioTagHeader.SoundSizes[mediaInfo.SoundSize]
-            chans = AudioTagHeader.SoundTypes[mediaInfo.SoundType]
-            if mediaInfo.SoundFormat == AudioTagHeader.PCM:
-                self._warnings.append('PCM byte order unspecified, assuming little endian')
-            return WAVWriter(path, bits, chans, sampleRate)
-        elif mediaInfo.SoundFormat == AudioTagHeader.AAC:
-            path = self._outputPathBase + '.aac'
-            if not self.CanWriteTo(path): return DummyWriter()
-            return AACWriter(path, self._warnings)
-        elif mediaInfo.SoundFormat == AudioTagHeader.SPEEX:
-            path = self._outputPathBase + '.spx'
-            if not self.CanWriteTo(path): return DummyWriter()
-            return SpeexWriter(path, self._fileLength & 0xffffffff)
-        else:
-            self._warnings.append('Unsupported Sound Format %d' % mediaInfo.SoundFormat)
-            return DummyWriter()
-
-    def GetVideoWriter(self, mediaInfo):
-        if mediaInfo.CodecID in (VideoTagHeader.H263, VideoTagHeader.SCREEN, VideoTagHeader.SCREENv2, VideoTagHeader.VP6, VideoTagHeader.VP6v2):
-            path = self._outputPathBase + '.avi'
-            if not self.CanWriteTo(path): return DummyWriter()
-            return AVIWriter(path, mediaInfo.CodecID, self._warnings)
-        elif mediaInfo.CodecID == VideoTagHeader.AVC:
-            path = self._outputPathBase + '.264'
-            if not self.CanWriteTo(path): return DummyWriter()
-            return RawH264Writer(path)
-        else:
-            self._warnings.append('Unsupported CodecID %d' % mediaInfo.CodecID)
-            return DummyWriter()
-
-    __slots__ += [ '_extractedAudio', '_extractedVideo', '_extractedTimeCodes' ]
-    def ReadTag(self):
-        if (self._fileLength - self._fileOffset) < 11:
+    def read_tag(self) -> bool:
+        if (self._file_length - self._file_offset) < 11:
             return False
 
         # 2bit reserved - 1bit filter - 5bit tagtype
-        tagType = self.ReadUInt8()
-        if tagType & 0xe0:
-            raise Exception('Encrypted or invalid packet')
+        tag_type = self.read_uint8()
+        if tag_type & 0xe0:
+            raise FLVException('Encrypted or invalid packet')
 
-        dataSize = self.ReadUInt24()
-        timeStamp = self.ReadUInt24()
-        timeStamp |= self.ReadUInt8() << 24
-        _StreamID = self.ReadUInt24()   # always 0
+        data_size = self.read_uint24()
+        timestamp = self.read_uint24()
+        timestamp |= self.read_uint8() << 24
+        _stream_id = self.read_uint24()  # always 0
 
         # Read tag data
-        if dataSize == 0:
+        if data_size == 0:
             return True
 
-        if (self._fileLength - self._fileOffset) < dataSize:
+        if (self._file_length - self._file_offset) < data_size:
             return False
 
-        mediaInfo = self.ReadBytes(1)
-        dataSize -= 1
+        mediainfo = self.read_uint8()
+        data_size -= 1
 
-        audioInfo = AudioTagHeader.from_buffer_copy(mediaInfo)
-        videoInfo = VideoTagHeader.from_buffer_copy(mediaInfo)
+        data = self.read_bytes(data_size)
 
-        chunk = bytearray(self.ReadBytes(dataSize))
-
-        if tagType == TAG.AUDIO:
-            if self._audioWriter is None:
-                if self._extractAudio:
-                    self._audioWriter = self.GetAudioWriter(audioInfo)
-                    self._extractedAudio = True
-                else:
-                    self._audioWriter = DummyWriter()
-            self._audioWriter.WriteChunk(chunk, timeStamp)
-
-        elif tagType == TAG.VIDEO and (videoInfo.FrameType != 5): # video info/command frame
-            if self._videoWriter is None:
-                if self._extractVideo:
-                    self._videoWriter = self.GetVideoWriter(videoInfo)
-                    self._extractedVideo = True
-                else:
-                    self._videoWriter = DummyWriter()
-
-            if self._timeCodeWriter is None:
-                if self._extractTimeCodes:
-                    path = self._outputPathBase + '.txt'
-                    if self.CanWriteTo(path):
-                        self._timeCodeWriter = TimeCodeWriter(path)
-                        self._extractedTimeCodes = True
-                    else:
-                        self._timeCodeWriter = DummyWriter()
-                else:
-                    self._timeCodeWriter = DummyWriter()
-
-            self._videoTimeStamps.append(timeStamp)
-            self._videoWriter.WriteChunk(chunk, timeStamp, videoInfo.FrameType)
-            self._timeCodeWriter.Write(timeStamp)
-
-        elif tagType == TAG.SCRIPT:
-            pass
-        else:
-            raise Exception('Unknown tag %d' % tagType)
-
+        if tag_type == Tag.AUDIO:
+            if self._audio_writer is None:
+                self._audio_writer = self.get_audio_writer(mediainfo) if self._extract_audio else DummyWriter()
+                self.extracted_audio = not isinstance(self._audio_writer, DummyWriter)
+            self._audio_writer.write_chunk(data, timestamp)
+        elif tag_type == Tag.VIDEO and ((mediainfo >> 4) != 5):
+            if self._video_writer is None:
+                self._video_writer = self.get_video_writer(mediainfo) if self._extract_video else DummyWriter()
+                self.extracted_video = not isinstance(self._video_writer, DummyWriter)
+            if self._timecode_writer is None:
+                path = self._input_path.with_suffix('.txt')
+                self._timecode_writer = TimeCodeWriter(
+                    path if self._extract_timecodes and self.can_write_to(path) else None)
+            self._video_timestamps.append(timestamp)
+            self._video_writer.write_chunk(data, timestamp, (mediainfo & 0xf0) >> 4)
+            self._timecode_writer.write(timestamp)
         return True
 
-    def CanWriteTo(self, path):
-        return not os.path.exists(path) or self._overwrite
+    def get_audio_writer(self, mediainfo: int) -> IAudioWriter | DummyWriter:
+        format_ = mediainfo >> 4
+        rate = (mediainfo >> 2) & 0x3
+        bits = (mediainfo >> 1) & 0x1
+        chans = mediainfo & 0x1
 
-    def CalculateAverageFrameRate(self):
-        frameCount = len(self._videoTimeStamps)
-        if frameCount > 1:
-            n = (frameCount - 1) * 1000 # TODO: cast uint32_t
-            d = self._videoTimeStamps[frameCount - 1] - self._videoTimeStamps[0]
+        match format_:
+            case AudioFormat.MP3 | AudioFormat.MP3_8k:
+                path = self._input_path.with_suffix('.mp3')
+                return MP3Writer(path, self.warnings) if self.can_write_to(path) else DummyWriter()
+            case AudioFormat.PCM | AudioFormat.PCM_LE:
+                assert 0 <= rate < 4
+                samplerate = SampleRates[rate]
+                path = self._input_path.with_suffix('.wav')
+                if not self.can_write_to(path):
+                    return DummyWriter()
+                if format_ == AudioFormat.PCM:
+                    self.warnings.append('PCM byte order unspecified, assuming little endian.')
+                return WAVWriter(path, 16 if bits == 1 else 8, 2 if chans == 1 else 1, samplerate)
+            case AudioFormat.AAC:
+                path = self._input_path.with_suffix('.aac')
+                return AACWriter(path) if self.can_write_to(path) else DummyWriter()
+            case AudioFormat.SPEEX:
+                path = self._input_path.with_suffix('.spx')
+                return SpeexWriter(path, self._file_length & 0xffffffff) if self.can_write_to(path) else DummyWriter()
+            case _:
+                self.warnings.append(f'Unable to extract audio ({format_} is unsupported).')
+                return DummyWriter()
+
+    def get_video_writer(self, mediainfo: int) -> IVideoWriter | DummyWriter:
+        codec_id = mediainfo & 0x0f
+
+        match codec_id:
+            case VideoCodecID.H263 | VideoCodecID.VP6 | VideoCodecID.VP6v2:
+                path = self._input_path.with_suffix('.avi')
+                return AVIWriter(path, codec_id, self.warnings) if self.can_write_to(path) else DummyWriter()
+            case VideoCodecID.AVC:
+                path = self._input_path.with_suffix('.264')
+                return RawH264Writer(path) if self.can_write_to(path) else DummyWriter()
+            case _:
+                self.warnings.append(f'Unable to extract video ({codec_id}) is unsupported).')
+                return DummyWriter()
+
+    def can_write_to(self, path: Path) -> bool:
+        return not path.exists() or self._overwrite
+
+    def calculate_average_framerate(self) -> Fraction | None:
+        frame_count = len(self._video_timestamps)
+        if frame_count > 1:
+            n = (frame_count - 1) * 1000
+            d = self._video_timestamps[frame_count - 1] - self._video_timestamps[0]
             return Fraction(n, d)
         return None
 
-    def CalculateTrueFrameRate(self):
-        deltaCount = {}
+    def calculate_true_framerate(self) -> Fraction | None:
+        delta_count: Dict[int, int] = {}
 
-        for i in xrange(1, len(self._videoTimeStamps)):
-            deltaS = self._videoTimeStamps[i] - self._videoTimeStamps[i - 1]
+        # Calculate the distance between the timestamps, count how many times each delta appears
+        for i in range(1, len(self._video_timestamps)):
+            delta_s = self._video_timestamps[i] - self._video_timestamps[i - 1]
 
-            if deltaS <= 0: continue
-            delta = deltaS
+            if delta_s <= 0:
+                continue
+            delta = delta_s
 
-            if delta in deltaCount:
-                deltaCount[delta] += 1
+            if delta in delta_count:
+                delta_count[delta] += 1
             else:
-                deltaCount[delta] = 1
+                delta_count[delta] = 1
 
-        threshold = len(self._videoTimeStamps) / 10
-        minDelta = None # let's say None is maxint
+        threshold = len(self._video_timestamps) // 10
+        min_delta = 0xffffffff  # UInt32.MaxValue
 
         # Find the smallest delta that made up at least 10% of the frames (grouping in delta+1
         # because of rounding, e.g. a NTSC video will have deltas of 33 and 34 ms)
-        for (delta, count) in deltaCount.items():
-            if (delta + 1) in deltaCount:
-                count += deltaCount[delta + 1]
-            if (count >= threshold) and ((minDelta is None) or (delta < minDelta)):
-                minDelta = delta
+        for delta, count in delta_count.items():
+            if (delta + 1) in delta_count:
+                count += delta_count[delta + 1]
+            if (count >= threshold) and (delta < min_delta):
+                min_delta = delta
 
         # Calculate the frame rate based on the smallest delta, and delta+1 if present
-        if minDelta is not None:
-            count = deltaCount[minDelta]
-            totalTime = minDelta * count
-            totalFrames = count
+        if min_delta != 0xffffffff:
+            count = delta_count[min_delta]
+            total_time = min_delta * count
+            total_frames = count
 
-            if (minDelta + 1) in deltaCount:
-                count = deltaCount[minDelta + 1]
-                totalTime += (minDelta + 1) * count
-                totalFrames += count
+            if (min_delta + 1) in delta_count:
+                count = delta_count[min_delta + 1]
+                total_time += (min_delta + 1) * count
+                total_frames += count
 
-            if totalTime != 0:
-                return Fraction(totalFrames * 1000, totalTime)
+            if total_time != 0:
+                return Fraction(total_frames * 1000, total_time)
 
+        # Unable to calculate frame rate
         return None
 
-    def Seek(self, offset):
+    def seek(self, offset: int) -> None:
+        assert self._fd is not None
         self._fd.seek(offset)
-        self._fileOffset = offset
+        self._file_offset = offset
 
-    def ReadUInt8(self):
-        return ord(self.ReadBytes(1))
+    def read_uint8(self) -> int:
+        return ord(self.read_bytes(1))
 
-    def ReadUInt24(self):
-        data = '\x00' + self.ReadBytes(3)
-        return BitConverterBE.ToUInt32(data)
+    def read_uint24(self) -> int:
+        data = bytearray(4)
+        data[1:4] = self.read_bytes(3)
+        return int.from_bytes(data, 'big')
 
-    def ReadUInt32(self):
-        return BitConverterBE.ToUInt32(self.ReadBytes(4))
+    def read_uint32(self) -> int:
+        return int.from_bytes(self.read_bytes(4), 'big')
 
-    def ReadBytes(self, size):
-        self._fileOffset += size
+    def read_bytes(self, size: int) -> bytes:
+        self._file_offset += size
+        assert self._fd is not None
         return self._fd.read(size)

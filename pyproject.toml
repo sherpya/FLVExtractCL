@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "flvextractcl"
+version = "1.6.5"
+description = "FLV Extract CL"
+authors = ["Gianluigi Tiesi <sherpya@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.8.0"
+mypy = "^1.13.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+exclude = [".venv"]
+
+line-length = 120
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "single"

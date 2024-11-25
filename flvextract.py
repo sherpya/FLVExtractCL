@@ -1,66 +1,88 @@
-#!/usr/bin/env python
-
-#
+#!/usr/bin/env python3
 # FLV Extract
-# Copyright (C) 2006-2012  J.D. Purcell (moitah@yahoo.com)
-# Python port by Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (C) 2006-2012 J.D. Purcell (moitah@yahoo.com)
+# Python port (C) 2012-2024 Gianluigi Tiesi <sherpya@gmail.com>
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
-from optparse import OptionParser
 from flvfile import FLVFile
 
-def parse_options():
-    parser = OptionParser(usage='%prog [options] source')
-    parser.add_option('-v', dest='extractVideo', help='Extract video.', action='store_true', default=False)
-    parser.add_option('-a', dest='extractAudio', help='Extract audio.', action='store_true', default=False)
-    parser.add_option('-t', dest='extractTimeCodes', help='Extract timecodes.', action='store_true', default=False)
-    parser.add_option('-o', dest='overwrite', help='Overwrite output files without prompting.', action='store_true', default=False)
-    parser.add_option('-d', dest='outputDirectory', help='''Output directory. If not specified, output files will be written
+
+class Arguments(Namespace):
+    source_path: Path
+    extract_video: bool
+    extract_audio: bool
+    extract_timecodes: bool
+    overwrite: bool
+    output_directory: Path | None
+
+
+def main() -> None:
+    print('FLV Extract CL v1.6.5 - Python version by Gianluigi Tiesi <sherpya@gmail.com>')
+    print('Copyright 2006-2012 J.D. Purcell')
+    print()
+
+    parser = ArgumentParser()
+    parser.add_argument('-v',
+                        dest='extract_video',
+                        help='Extract video.',
+                        action='store_true',
+                        default=False)
+    parser.add_argument('-a',
+                        dest='extract_audio',
+                        help='Extract audio.',
+                        action='store_true',
+                        default=False)
+    parser.add_argument('-t',
+                        dest='extract_timecodes',
+                        help='Extract timecodes.',
+                        action='store_true',
+                        default=False)
+    parser.add_argument('-o',
+                        dest='overwrite',
+                        help='Overwrite output files without prompting.',
+                        action='store_true',
+                        default=False)
+    parser.add_argument(
+        '-d',
+        dest='dir',
+        type=Path,
+        help='''Output directory. If not specified, output files will be written
 in the same directory as the source file.''')
 
-    (options, source) = parser.parse_args()
+    parser.add_argument('source_path', type=Path, help='Source FLV File')
+    args = parser.parse_args(namespace=Arguments())
 
-    if len(source) != 1:
-        parser.print_help()
-        parser.exit()
+    flvFile = FLVFile(args.source_path)
+    if args.dir is not None:
+        flvFile.output_directory = args.dir
+    flvFile.extract_streams(args.extract_audio, args.extract_video, args.extract_timecodes, args.overwrite)
 
-    setattr(options, 'inputPath', source[0])
-    return options
+    print(f'True Frame Rate: {flvFile.true_framerate:g} ({flvFile.true_framerate})')
+    print(f'Average Frame Rate: {flvFile.average_framerate:g} ({flvFile.average_framerate})')
+    print()
 
-def main():
-    print 'FLV Extract CL v1.6.2 - Python version by Gianluigi Tiesi <sherpya@netfarm.it>'
-    print 'Copyright 2006-2012 J.D. Purcell'
-    print 'http://www.moitah.net/'
-    print
+    for warn in flvFile.warnings:
+        print(f'Warning: {warn}')
 
-    opts = parse_options()
-    flvFile = FLVFile(opts.inputPath)
-    if opts.outputDirectory is not None:
-        flvFile.SetOutputDirectory(opts.outputDirectory)
-    flvFile.ExtractStreams(opts.extractAudio, opts.extractVideo, opts.extractTimeCodes, opts.overwrite)
+    print('Finished')
 
-    print 'True Frame Rate:', flvFile.TrueFrameRate()
-    print 'Average Frame Rate:', flvFile.AverageFrameRate()
-    print
-
-    for warn in flvFile.Warnings():
-        print 'Warning:', warn
-
-    print 'Finished'
 
 if __name__ == '__main__':
     main()

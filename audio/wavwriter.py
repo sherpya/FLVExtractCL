@@ -1,91 +1,105 @@
-#
 # FLV Extract
-# Copyright (C) 2006-2012  J.D. Purcell (moitah@yahoo.com)
-# Python port by Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (C) 2006-2012 J.D. Purcell (moitah@yahoo.com)
+# Python port (C) 2012-2024 Gianluigi Tiesi <sherpya@gmail.com>
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from abc import ABC
+from pathlib import Path
+from typing import BinaryIO
 
-from general import BitConverterLE
-from audio import AudioWriter
+from interfaces import IAudioWriter
 
-class WAVWriter(AudioWriter):
-    __slots__  = [ 'blockAlign', '_bitsPerSample', '_channelCount', '_sampleRate', '_blockAlign' ]
-    __slots__ += [ '_sampleLen', '_finalSampleLen', '_wroteHeaders' ]
 
-    def __init__(self, path, bitsPerSample, channelCount, sampleRate):
-        super(WAVWriter, self).__init__(path)
+class WAVWriter(IAudioWriter, ABC):
+    _path: Path
+    block_align: int
 
-        self.blockAlign = (bitsPerSample / 8) * channelCount
+    _fd: BinaryIO
+    _wrote_headers = False
+    _bits_per_sample: int
+    _channel_count: int
+    _samplerate: int
+    _block_align: int
+    _final_sample_len = 0
+    _sample_len = 0
+
+    def __init__(self, path: Path, bits_per_sample: int, channel_count: int, samplerate: int):
+        self._path = path
 
         # WAVTools.WAVWriter
-        self._bitsPerSample = bitsPerSample
-        self._channelCount = channelCount
-        self._sampleRate = sampleRate
-        self._blockAlign = self._channelCount * ((self._bitsPerSample + 7) / 8)
+        self._fd = self._path.open('wb')
+        self._bits_per_sample = bits_per_sample
+        self._channel_count = channel_count
+        self._samplerate = samplerate
+        self._block_align = self._channel_count * (self._bits_per_sample + 7) // 8
+        # WAVTools.WAVWriter
 
-        self._sampleLen = self._finalSampleLen = 0
-        self._wroteHeaders = False
+        # wtf
+        self.block_align = (bits_per_sample // 8) * channel_count
 
-    def WriteChunk(self, chunk, timeStamp=None):
-        self.WriteSamples(chunk, len(chunk) / self.blockAlign)
+    def write_chunk(self, chunk: bytes, timestamp: int) -> None:
+        self.write(chunk, len(chunk) // self.block_align)
 
-    def WriteHeaders(self):
-        dataChunkSize = self.GetDataChunkSize(self._finalSampleLen)
+    def finish(self) -> None:
+        # WAVTools.WAVWriter
+        if ((self._sample_len * self._block_align) & 1) == 1:
+            self._fd.write(b'\x00')
 
-        self.WriteFourCC('RIFF')
-        self.Write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
-        self.WriteFourCC('WAVE')
-        self.WriteFourCC('fmt ')
-        self.Write(BitConverterLE.FromUInt32(16))
-        self.Write(BitConverterLE.FromUInt16(1))
-        self.Write(BitConverterLE.FromUInt16(self._channelCount))
-        self.Write(BitConverterLE.FromUInt32(self._sampleRate))
-        self.Write(BitConverterLE.FromUInt32(self._sampleRate * self._blockAlign))
-        self.Write(BitConverterLE.FromUInt16(self._blockAlign))
-        self.Write(BitConverterLE.FromUInt16(self._bitsPerSample))
-        self.WriteFourCC('data')
-        self.Write(BitConverterLE.FromUInt32(dataChunkSize))
+        if self._sample_len != self._final_sample_len:
+            data_chunk_size = self.get_data_chunk_size(self._sample_len)
+            self._fd.seek(4)
+            self._fd.write((data_chunk_size + (data_chunk_size & 1) + 36).to_bytes(4, 'little'))
+            self._fd.seek(40)
+            self._fd.write(data_chunk_size.to_bytes(4, 'little'))
 
-    def GetDataChunkSize(self, sampleCount):
-        maxFileSize = 0x7ffffffe
+        self._fd.close()
 
-        dataSize = sampleCount * self._blockAlign
-        if (dataSize + 44) > maxFileSize:
-            dataSize = ((maxFileSize - 44) / self._blockAlign) * self._blockAlign
-        return dataSize
+    def write_headers(self) -> None:
+        data_chunk_size = self.get_data_chunk_size(self._final_sample_len)
 
-    def Finish(self):
-        if ((self._sampleLen * self._blockAlign) & 1) == 1:
-            self.Write('\x00')
+        self._fd.write(b'RIFF')
+        self._fd.write((data_chunk_size + (data_chunk_size & 1) + 36).to_bytes(4, 'little'))
+        self._fd.write(b'WAVE')
+        self._fd.write(b'fmt ')
+        self._fd.write(int.to_bytes(16, 4, 'little'))
+        self._fd.write(int.to_bytes(1, 2, 'little'))
+        self._fd.write(self._channel_count.to_bytes(2, 'little'))
+        self._fd.write(self._samplerate.to_bytes(4, 'little'))
+        self._fd.write((self._samplerate * self._block_align).to_bytes(4, 'little'))
+        self._fd.write(self._block_align.to_bytes(2, 'little'))
+        self._fd.write(self._bits_per_sample.to_bytes(2, 'little'))
+        self._fd.write(b'data')
+        self._fd.write(data_chunk_size.to_bytes(4, 'little'))
 
-        if self._sampleLen != self._finalSampleLen:
-            dataChunkSize = self.GetDataChunkSize(self._sampleLen)
-            self.Seek(4)
-            self.Write(BitConverterLE.FromUInt32(dataChunkSize + (dataChunkSize & 1) + 36))
-            self.Seek(40)
-            self.Write(BitConverterLE.FromUInt32(dataChunkSize))
+    def get_data_chunk_size(self, sample_count: int) -> int:
+        max_file_size = 0x7ffffffe
 
-        self.Close()
+        data_size = sample_count * self._block_align
+        if (data_size + 44) > max_file_size:
+            data_size = ((max_file_size - 44) // self._block_align) * self._block_align
+        return data_size
 
-    def WriteSamples(self, buff, sampleCount):
-        if sampleCount <= 0: return
+    def write(self, buff: bytes, sample_count: int) -> None:
+        if sample_count <= 0:
+            return
 
-        if not self._wroteHeaders:
-            self.WriteHeaders()
-            self._wroteHeaders = True
+        if not self._wrote_headers:
+            self.write_headers()
+            self._wrote_headers = True
 
-        self.Write(buff, 0, sampleCount * self._blockAlign)
-        self._sampleLen += sampleCount
+        self._fd.write(buff[:sample_count * self._block_align])
+        self._sample_len += sample_count

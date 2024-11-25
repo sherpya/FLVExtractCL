@@ -1,84 +1,95 @@
-#
 # FLV Extract
-# Copyright (C) 2006-2012  J.D. Purcell (moitah@yahoo.com)
-# Python port by Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (C) 2006-2012 J.D. Purcell (moitah@yahoo.com)
+# Python port (C) 2012-2024 Gianluigi Tiesi <sherpya@gmail.com>
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from abc import ABC
+from fractions import Fraction
+from pathlib import Path
 
-from general import BitConverterBE
-from video import VideoWriter
+from interfaces import IVideoWriter
 
-class RawH264Writer(VideoWriter):
-    __slots__  = [ '_nalLengthSize' ]
+START_CODE = b'\x00\x00\x00\x01'
 
-    def __init__(self, path):
-        super(RawH264Writer, self).__init__(path)
-        self._startCode = '\x00\x00\x00\x01'
-        self._nalLengthSize = 0
 
-    def WriteChunk(self, chunk, timeStamp=-1, frameType=-1):
+class RawH264Writer(IVideoWriter, ABC):
+    _nal_length_size: int = 0
+
+    def __init__(self, path: Path):
+        self._path = path
+        self._fd = self._path.open('wb')
+
+    def write_chunk(self, chunk: bytes, timestamp: int, frame_type: int) -> None:
         length = len(chunk)
-        if length < 4: return
+        if length < 4:
+            return
 
         # Reference: decode_frame from libavcodec's h264.c
 
         # header
         if chunk[0] == 0:
-            if length < 10: return
+            if length < 10:
+                return
 
             offset = 8
 
-            self._nalLengthSize = (chunk[offset] & 0x03) + 1 ; offset += 1
-            spsCount = chunk[offset] & 0x1f ; offset += 1
-            ppsCount = -1
+            self._nal_length_size = (chunk[offset] & 0x03) + 1
+            offset += 1
+            sps_count = chunk[offset] & 0x1f
+            offset += 1
+            pps_count = -1
 
             while offset <= (length - 2):
-                if (spsCount == 0) and (ppsCount == -1):
-                    ppsCount = chunk[offset] ; offset += 1
+                if (sps_count == 0) and (pps_count == -1):
+                    pps_count = chunk[offset]
+                    offset += 1
                     continue
 
-                if spsCount > 0: spsCount -= 1
-                elif ppsCount > 0: ppsCount -= 1
-                else: break
+                if sps_count > 0:
+                    sps_count -= 1
+                elif pps_count > 0:
+                    pps_count -= 1
+                else:
+                    break
 
-                clen = BitConverterBE.ToUInt16(chunk, offset)
+                len_ = int.from_bytes(chunk[offset:offset + 2], 'big')
                 offset += 2
-                if (offset + clen) > length: break
-                self.Write(self._startCode)
-                self.Write(chunk, offset, clen)
-                offset += clen
-
-        # Video Data
-        else:
-            assert self._nalLengthSize
+                if (offset + len_) > length:
+                    break
+                self._fd.write(START_CODE)
+                self._fd.write(chunk[offset:offset + len_])
+                offset += len_
+        else:  # Video Data
             offset = 4
 
-            if self._nalLengthSize != 2:
-                self._nalLengthSize = 4
+            if self._nal_length_size != 2:
+                self._nal_length_size = 4
 
-            while offset <= (length - self._nalLengthSize):
-                if self._nalLengthSize == 2:
-                    clen = BitConverterBE.ToUInt16(chunk, offset)
+            while offset <= (length - self._nal_length_size):
+                if self._nal_length_size == 2:
+                    len_ = int.from_bytes(chunk[offset:offset + 2], 'big')
                 else:
-                    clen = BitConverterBE.ToUInt32(chunk, offset)
-                offset += self._nalLengthSize
-                if (offset + clen) > length: break
-                self.Write(self._startCode)
-                self.Write(chunk, offset, clen)
-                offset += clen
+                    len_ = int.from_bytes(chunk[offset:offset + 4], 'big')
+                offset += self._nal_length_size
+                if (offset + len_) > length:
+                    break
+                self._fd.write(START_CODE)
+                self._fd.write(chunk[offset:offset + len_])
+                offset += len_
 
-    def Finish(self, averageFrameRate):
-        self.Close()
+    def finish(self, average_framerate: Fraction) -> None:
+        self._fd.close()
